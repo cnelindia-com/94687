@@ -1,0 +1,445 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domains\Engine\Services;
+
+use App\Domains\Entity\Enums\EntityEnum;
+use App\Helpers\Classes\ApiHelper;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+class FalAIService
+{
+    public const GENERATE_ENDPOINT = 'https://queue.fal.run/fal-ai/%s';
+
+    public const CHECK_ENDPOINT = 'https://queue.fal.run/fal-ai/%s/requests/%s';
+
+    public const HAIPER_URL = 'https://queue.fal.run/fal-ai/haiper-video-v2/image-to-video';
+
+    public const IDEOGRAM_URL = 'https://queue.fal.run/fal-ai/ideogram/v2';
+
+    public const KLING_URL = 'https://queue.fal.run/fal-ai/kling-video/v1/standard/text-to-video';
+
+    public const KLING_V21_URL = 'https://queue.fal.run/fal-ai/kling-video/v2.1/master/image-to-video';
+
+    public const KLING_IMAGE_URL = 'https://queue.fal.run/fal-ai/kling-video/v1.6/pro/image-to-video';
+
+    public const LUMA_URL = 'https://queue.fal.run/fal-ai/luma-dream-machine';
+
+    public const MINIMAX_URL = 'https://queue.fal.run/fal-ai/minimax-video';
+
+    public const VEO_2_URL = 'https://queue.fal.run/fal-ai/veo2';
+
+    public static function ratio(): null|array|string
+    {
+        $ratio = request('image_ratio');
+
+        if (! is_string($ratio)) {
+            return null;
+        }
+
+        $explode = explode('x', $ratio);
+
+        if (! is_array($explode)) {
+            return null;
+        }
+
+        if ((isset($explode[0]) && is_numeric($explode[0])) && (isset($explode[1]) && is_numeric($explode[1]))) {
+            return [
+                'width'  => (int) $explode[0],
+                'height' => (int) $explode[1],
+            ];
+        }
+
+        return $ratio;
+    }
+
+    /**
+     * Get the correct ratio parameter name based on the entity.
+     *
+     * Different FAL AI models use different parameter names:
+     * - FLUX Pro, SeeDream: use 'image_size' with named values (portrait_16_9, landscape_4_3, etc.)
+     * - Nano Banana, Ideogram: use 'aspect_ratio' with colon format (16:9, 9:16, etc.)
+     */
+    public static function getRatioParameterName(?EntityEnum $entity): string
+    {
+        $aspectRatioModels = [
+            EntityEnum::NANO_BANANA,
+            EntityEnum::NANO_BANANA_EDIT,
+            EntityEnum::NANO_BANANA_PRO,
+            EntityEnum::NANO_BANANA_PRO_EDIT,
+            EntityEnum::IMAGEN_4,
+        ];
+
+        if ($entity && in_array($entity, $aspectRatioModels, true)) {
+            return 'aspect_ratio';
+        }
+
+        return 'image_size';
+    }
+
+    public static function generateKontext($prompt, EntityEnum $entity = EntityEnum::FLUX_PRO, array $images = [])
+    {
+        $url = sprintf(self::GENERATE_ENDPOINT, $entity->value);
+
+        $images = self::createImageUrl($images);
+
+        $entityValue = $entity->value;
+
+        if ($entityValue === EntityEnum::IMAGEN_4->value) {
+            $url .= '/preview';
+        }
+
+        $request = [
+            'prompt' => $prompt,
+        ];
+
+        if ($entity === EntityEnum::FLUX_PRO_KONTEXT && count($images) === 1) {
+            $request['image_url'] = Arr::first($images);
+        } else {
+            $request['image_urls'] = $images;
+        }
+
+        $http = Http::withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])->post($url, $request);
+
+        if (($http->status() === 200) && $requestId = $http->json('request_id')) {
+            return $requestId;
+        }
+
+        $detail = $http->json('detail');
+
+        throw new RuntimeException(__($detail ?: 'Check your FAL API key.'));
+    }
+
+    public static function createImageUrl(array $images = []): ?array
+    {
+        $urls = [];
+
+        foreach ($images as $image) {
+            $urls[] = url('uploads/' . $image->store('falai', 'public'));
+        }
+
+        return $urls;
+    }
+
+    public static function generate($prompt, ?EntityEnum $entity = EntityEnum::FLUX_PRO, ?array $options = [])
+    {
+        $ratio = self::ratio() ?? ($options['aspect_ratio'] ?? null);
+        $request = [
+            'prompt' => $prompt,
+        ];
+
+        if ($ratio) {
+            $ratioParamName = self::getRatioParameterName($entity);
+            $request = Arr::add($request, $ratioParamName, $ratio);
+        }
+
+        // Handle image_reference which can be a string or array
+        $imageReference = $options['image_reference'] ?? null;
+        $styleReference = $options['style_reference'] ?? null;
+
+        // Normalize image_reference to array if it's a string
+        $imageReferenceUrls = [];
+        if (is_array($imageReference)) {
+            $imageReferenceUrls = array_filter($imageReference);
+        } elseif (is_string($imageReference) && ! empty($imageReference)) {
+            $imageReferenceUrls = [$imageReference];
+        }
+
+        // Collect all image URLs
+        $imageUrls = collect($imageReferenceUrls);
+        if (! empty($styleReference)) {
+            $imageUrls->push($styleReference);
+        }
+        $imageUrls = $imageUrls->filter()->values();
+
+        if ($entity === EntityEnum::SEEDREAM_4) {
+            $entityValue = 'bytedance/' . $entity?->value;
+            if ($imageUrls->isNotEmpty()) {
+                $entityValue = EntityEnum::SEEDREAM_4_EDIT->value;
+                $request['image_urls'] = $imageUrls->all();
+            }
+        } elseif ($entity === EntityEnum::FLUX_PRO_KONTEXT_TEXT_TO_IMAGE) {
+            $entityValue = $entity?->value;
+        } elseif ($entity === EntityEnum::NANO_BANANA) {
+            $entityValue = $entity?->value;
+        } elseif ($entity === EntityEnum::NANO_BANANA_PRO) {
+            $entityValue = $entity?->value;
+        } elseif ($entity === EntityEnum::FLUX_2_FLEX || $entity === EntityEnum::FLUX_2_FLEX_EDIT) {
+            $entityValue = $entity?->value;
+        } elseif ($entity === EntityEnum::SEEDREAM_4) {
+            $entityValue = 'bytedance/' . $entity?->value;
+        } else {
+            $entityValue = $entity?->value ?? setting('fal_ai_default_model');
+            $entityValue = EntityEnum::fromSlug($entityValue)->value;
+        }
+
+        if (in_array($entityValue, [EntityEnum::NANO_BANANA->value, EntityEnum::NANO_BANANA_EDIT->value], true) && $imageUrls->isNotEmpty()) {
+            $entityValue = EntityEnum::NANO_BANANA_EDIT->value;
+            $request['image_urls'] = $imageUrls->all();
+        }
+
+        if (in_array($entityValue, [EntityEnum::NANO_BANANA_PRO->value, EntityEnum::NANO_BANANA_PRO_EDIT->value], true) && $imageUrls->isNotEmpty()) {
+            $entityValue = EntityEnum::NANO_BANANA_PRO_EDIT->value;
+            $request['image_urls'] = $imageUrls->all();
+        }
+
+        $url = sprintf(self::GENERATE_ENDPOINT, $entityValue);
+
+        if ($entityValue === EntityEnum::IMAGEN_4->value) {
+            $url .= '/preview';
+        }
+
+        $http = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])->post($url, $request);
+
+        if (($http->status() === 200) && $requestId = $http->json('request_id')) {
+            return $requestId;
+        }
+
+        $detail = $http->json('detail');
+
+        throw new RuntimeException(__($detail ?: 'Check your FAL API key.'));
+    }
+
+    public static function check($uuid, EntityEnum $entity = EntityEnum::FLUX_PRO): ?array
+    {
+        $entityValue = $entity->value ?? setting('fal_ai_default_model');
+
+        $enum = EntityEnum::fromSlug($entityValue);
+
+        if ($enum === EntityEnum::FLUX_SCHNELL) {
+            $entityValue = 'flux-pro';
+        }
+
+        if ($enum === EntityEnum::SEEDREAM_4 || $enum === EntityEnum::SEEDREAM_4_EDIT) {
+            $entityValue = 'bytedance';
+        }
+
+        if ($enum === EntityEnum::FLUX_PRO_1_1 || $enum === EntityEnum::FLUX_PRO) {
+            $entityValue = 'flux';
+        }
+
+        if ($enum === EntityEnum::FLUX_2_FLEX || $enum === EntityEnum::FLUX_2_FLEX_EDIT) {
+            $entityValue = 'flux-2-flex';
+        }
+
+        if (in_array($enum, [
+            EntityEnum::NANO_BANANA,
+            EntityEnum::NANO_BANANA_EDIT,
+            EntityEnum::NANO_BANANA_PRO,
+            EntityEnum::NANO_BANANA_PRO_EDIT,
+        ], true)) {
+            $entityValue = 'flux';
+        }
+
+        $url = sprintf(self::CHECK_ENDPOINT, $entityValue, $uuid);
+
+        $http = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])->get($url);
+
+        if (($images = $http->json('images')) && is_array($images)) {
+            $image = Arr::first($images);
+
+            return [
+                'image' => $image,
+                'size'  => data_get($image, 'width') . 'x' . data_get($image, 'height'),
+            ];
+        }
+
+        $http = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])->get($url . '/status');
+
+        if ($http->status() !== 200) {
+            $responseStatus = $http->json('status');
+
+            // If fal.ai indicates the request is still being processed, continue polling
+            if (in_array($responseStatus, ['IN_QUEUE', 'IN_PROGRESS'], true)) {
+                return null;
+            }
+
+            return [
+                'status' => $responseStatus ?? 'FAILED',
+                'error'  => $http->json('detail', 'Image generation failed.'),
+            ];
+        }
+
+        return null;
+    }
+
+    public static function ideogramGenerate(string $prompt, ?EntityEnum $entity = EntityEnum::IDEOGRAM, ?array $options = [])
+    {
+        $ratio = self::ratio() ?? ($options['aspect_ratio'] ?? null);
+
+        $request = [
+            'prompt'    => $prompt,
+        ];
+
+        if ($ratio) {
+            $ratioParam = match ($ratio) {
+                'landscape_16_9' => '16:9',
+                'square'         => '1:1',
+                'portrait_16_9'  => '9:16',
+                default          => $ratio,
+            };
+
+            $request = Arr::add($request, 'aspect_ratio', $ratioParam);
+        }
+
+        $http = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])->post(self::IDEOGRAM_URL, $request);
+
+        if (($http->status() === 200) && $requestId = $http->json('request_id')) {
+            return $requestId;
+        }
+
+        $detail = $http->json('detail');
+
+        throw new RuntimeException(__($detail ?: 'Check your FAL API key.'));
+    }
+
+    public static function haiperGenerate(string $prompt, string $imageUrl)
+    {
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::HAIPER_URL,
+                [
+                    'prompt'    => $prompt,
+                    'image_url' => $imageUrl,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function klingImageGenerate(string $prompt, string $imageUrl)
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', 540);
+
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::KLING_IMAGE_URL,
+                [
+                    'prompt'    => $prompt,
+                    'image_url' => $imageUrl,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function klingV21Generate(string $prompt, string $imageUrl)
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', 540);
+
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::KLING_V21_URL,
+                [
+                    'prompt'    => $prompt,
+                    'image_url' => $imageUrl,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function minimaxGenerate(string $prompt)
+    {
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::MINIMAX_URL,
+                [
+                    'prompt' => $prompt,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function klingGenerate(string $prompt)
+    {
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::KLING_URL,
+                [
+                    'prompt' => $prompt,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function lumaGenerate(string $prompt)
+    {
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::LUMA_URL,
+                [
+                    'prompt' => $prompt,
+                ]);
+
+        return $response->json();
+    }
+
+    public static function veo2Generate(string $prompt): \GuzzleHttp\Promise\PromiseInterface|\Illuminate\Http\Client\Response
+    {
+        return Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->post(self::VEO_2_URL,
+                [
+                    'prompt' => $prompt,
+                ]);
+    }
+
+    public static function getStatus($url)
+    {
+        ini_set('max_execution_time', 440);
+        set_time_limit(0);
+
+        $response = Http::timeout(3000)->withHeaders([
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Key ' . ApiHelper::setFalAIKey(),
+        ])
+            ->get($url);
+
+        return $response->json();
+    }
+}

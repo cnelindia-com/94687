@@ -1,0 +1,6 @@
+{
+  "name": "Checkout Registration",
+  "type": "extension",
+  "version": "1.5",
+  "description": "Registration with checkout process extension for MagicAI"
+}

@@ -1,0 +1,56 @@
+<?php
+
+namespace App\Packages\FalAI;
+
+use App\Domains\Entity\Enums\EntityEnum;
+use App\Packages\FalAI\API\BaseApiClient;
+use App\Packages\FalAI\Contracts\TextToVideoModelInterface;
+use App\Packages\FalAI\Models\FastVeo3;
+use App\Packages\FalAI\Models\Kling;
+use App\Packages\FalAI\Models\Kling25Turbo;
+use App\Packages\FalAI\Models\Kling26Pro;
+use App\Packages\FalAI\Models\Veed;
+use App\Packages\FalAI\Models\Veo3;
+use App\Packages\FalAI\Models\Veo31;
+use InvalidArgumentException;
+
+class FalAIService
+{
+    protected BaseApiClient $client;
+
+    public function __construct(
+        string $falKey,
+        string $apiBaseUrl = 'https://queue.fal.run'
+    ) {
+        set_time_limit(0);
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', 3600);
+
+        $this->client = new BaseApiClient($falKey, $apiBaseUrl);
+    }
+
+    /** text to video model */
+    public function textToVideoModel(EntityEnum $model): TextToVideoModelInterface
+    {
+        return match ($model) {
+            EntityEnum::KLING_VIDEO => new Kling($this->client),
+            EntityEnum::VEED        => new Veed($this->client),
+            EntityEnum::VEO_3       => new Veo3($this->client),
+            EntityEnum::VEO_3_FAST  => new FastVeo3($this->client),
+            EntityEnum::VEO_3_1_TEXT_TO_VIDEO,
+            EntityEnum::VEO_3_1_TEXT_TO_VIDEO_FAST,
+            EntityEnum::VEO_3_1_IMAGE_TO_VIDEO,
+            EntityEnum::VEO_3_1_IMAGE_TO_VIDEO_FAST,
+            EntityEnum::VEO_3_1_FIRST_LAST_FRAME_TO_VIDEO,
+            EntityEnum::VEO_3_1_FIRST_LAST_FRAME_TO_VIDEO_FAST,
+            EntityEnum::VEO_3_1_REFERENCE_TO_VIDEO => new Veo31($this->client),
+            EntityEnum::KLING_2_5_TURBO_PRO_TTV,
+            EntityEnum::KLING_2_5_TURBO_STANDARD_ITV,
+            EntityEnum::KLING_2_5_TURBO_PRO_ITV    => new Kling25Turbo($this->client, $model),
+            EntityEnum::KLING_2_6_PRO_TTV,
+            EntityEnum::KLING_2_6_PRO_ITV          => new Kling26Pro($this->client, $model),
+            default                                => throw new InvalidArgumentException("Model {$model->value} is not supported."),
+
+        };
+    }
+}

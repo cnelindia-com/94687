@@ -1,0 +1,3 @@
+/www/server/php/83/bin/php artisan cache:clear
+/www/server/php/83/bin/php artisan config:clear
+/www/server/php/83/bin/php artisan view:clear

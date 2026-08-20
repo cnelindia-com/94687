@@ -1,0 +1,731 @@
+@extends('panel.layout.settings', ['layout' => 'wide'])
+@section('title', __('Default Models'))
+@section('titlebar_subtitle', __('Manage your default AI models.'))
+
+@section('settings')
+    <div class="space-y-6">
+        {{-- Header --}}
+        <div>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ __('Default Models') }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Manage your default AI models') }}</p>
+        </div>
+
+        {{-- Tab Buttons --}}
+        <div class="border-b border-gray-200 dark:border-gray-700">
+            <div class="flex gap-8">
+                <button
+                    onclick="showTab('default')"
+                    id="tab-default"
+                    class="pb-3 px-1 text-base font-semibold border-b-2 border-primary text-primary transition-all"
+                >
+                    {{ __('Default Models') }}
+                </button>
+                <button
+                    onclick="showTab('create')"
+                    id="tab-create"
+                    class="pb-3 px-1 text-base font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-all"
+                >
+                    {{ __('Create New Model') }}
+                </button>
+            </div>
+        </div>
+
+        {{-- Default Models Tab --}}
+        <div id="tab-content-default">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="default-models-grid">
+                {{-- Models will be loaded dynamically via JavaScript --}}
+                <div class="text-center py-10 col-span-full">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p class="mt-2 text-gray-500">{{ __('Loading models...') }}</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Create Tab --}}
+        <div id="tab-content-create" class="hidden">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="p-6 space-y-6">
+                    {{-- Model Name --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Model Name') }} <span class="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="model-name"
+                            placeholder="{{ __('e.g., John Doe') }}"
+                            class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                        >
+                    </div>
+
+                    {{-- Gender Selection --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Gender') }} <span class="text-red-500">*</span>
+                        </label>
+                        <div class="flex gap-6">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="gender" value="Male" class="w-4 h-4 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Male') }}</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="gender" value="Female" class="w-4 h-4 text-primary focus:ring-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Female') }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    {{-- Upload Photos --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Upload Photos') }} <span class="text-red-500">*</span>
+                        </label>
+                        
+                        {{-- Drop Zone --}}
+                        <div
+                            id="drop-zone-create"
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
+                        >
+                            <div class="flex flex-col items-center gap-3">
+                                <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-gray-700 dark:text-gray-300 font-medium text-lg">{{ __('Drag & drop images here') }}</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('or click to browse') }}</p>
+                                </div>
+                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('PNG, JPG up to 25MB each') }}</p>
+                            </div>
+                        </div>
+
+                        <input
+                            type="file"
+                            id="create-upload-input"
+                            multiple
+                            accept="image/*"
+                            class="hidden"
+                        >
+
+                        {{-- Preview Grid with Drag and Drop Reordering --}}
+                        <div id="create-preview" class="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 hidden"></div>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">{{ __('💡 Drag and drop images to reorder them') }}</p>
+                    </div>
+
+                    {{-- Create Button --}}
+                    <button
+                        type="button"
+                        id="create-model-btn"
+                        class="w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm text-base"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        {{ __('Create New Model') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .aspect-\[3\/4\] {
+            aspect-ratio: 3/4;
+        }
+        
+        .model-card.dragging {
+            opacity: 0.3;
+            cursor: grabbing !important;
+        }
+        
+        .model-card.drag-over {
+            border: 2px solid #10b981;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .preview-item.dragging {
+            opacity: 0.3;
+            cursor: grabbing !important;
+        }
+        
+        .preview-item.drag-over {
+            border: 2px solid #10b981;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+        
+        .preview-item {
+            transition: all 0.2s ease;
+            cursor: grab;
+        }
+        
+        .preview-item:active {
+            cursor: grabbing;
+        }
+        
+        .model-card {
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        
+        .model-card:active {
+            cursor: grabbing;
+        }
+        
+        .saving-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            animation: fadeOut 3s ease forwards;
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+        
+        .reset-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #6b7280;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            z-index: 9999;
+            transition: all 0.2s ease;
+        }
+        
+        .reset-btn:hover {
+            background: #ef4444;
+        }
+    </style>
+
+    <script>
+        // ============ STATIC MODELS DATA ============
+        const staticModelsData = [
+            { id: 1, name: 'Ethan', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/ethan.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/ethan.jpg') }}' },
+            { id: 2, name: 'Mia', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/mia.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/mia.jpg') }}' },
+            { id: 3, name: 'Sophie', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/sophie.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/sophie_thumbnail.png') }}' },
+            { id: 4, name: 'Ella', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/ella1.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/ella_thumbnail.png') }}' },
+            { id: 5, name: 'Olivia', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/olivia.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/olivia.jpg') }}' },
+            { id: 6, name: 'Chloe', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/chloe.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/chloe.jpg') }}' },
+            { id: 7, name: 'Emma', gender: 'Female', image_url: '{{ asset('vendor/fashion-studio/images/models/emma.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/emma.jpg') }}' },
+            { id: 8, name: 'Lucas', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/lucas.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/lucas.jpg') }}' },
+            { id: 9, name: 'Liam', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/liam.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/liam.jpg') }}' },
+            { id: 10, name: 'Noah', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/noah.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/noah.jpg') }}' },
+            { id: 11, name: 'Oliver', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/oliver.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/oliver.jpg') }}' },
+            { id: 12, name: 'Sanchez', gender: 'Male', image_url: '{{ asset('vendor/fashion-studio/images/models/sanchez.png') }}', thumbnail: '{{ asset('vendor/fashion-studio/images/Thumbnailmodels/sanchez.jpg') }}' }
+        ];
+        
+        let defaultModelsData = [];
+        let dragSrcIndexDefault = null;
+        
+        // Save order to localStorage
+        function saveOrderToLocalStorage() {
+            const orderData = defaultModelsData.map((model, index) => ({
+                id: model.id,
+                order: index
+            }));
+            localStorage.setItem('default_models_order', JSON.stringify(orderData));
+            showSavingIndicator('Order saved successfully!', 'success');
+        }
+        
+        // Load order from localStorage
+        function loadOrderFromLocalStorage() {
+            const savedOrder = localStorage.getItem('default_models_order');
+            if (savedOrder) {
+                const orderData = JSON.parse(savedOrder);
+                // Reorder models based on saved order
+                const orderedModels = [];
+                orderData.forEach(saved => {
+                    const model = staticModelsData.find(m => m.id === saved.id);
+                    if (model) {
+                        orderedModels.push(model);
+                    }
+                });
+                // Add any missing models
+                staticModelsData.forEach(model => {
+                    if (!orderedModels.find(m => m.id === model.id)) {
+                        orderedModels.push(model);
+                    }
+                });
+                return orderedModels;
+            }
+            return [...staticModelsData];
+        }
+        
+        // Reset to default order
+        function resetToDefaultOrder() {
+            if (confirm('Are you sure you want to reset all models to default order?')) {
+                localStorage.removeItem('default_models_order');
+                defaultModelsData = [...staticModelsData];
+                renderDefaultModelsGrid();
+                showSavingIndicator('Reset to default order!', 'success');
+            }
+        }
+        
+        function showSavingIndicator(message, type = 'info') {
+            const indicator = document.createElement('div');
+            indicator.className = 'saving-indicator';
+            indicator.style.background = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6');
+            indicator.textContent = message;
+            document.body.appendChild(indicator);
+            
+            setTimeout(() => {
+                indicator.remove();
+            }, 3000);
+        }
+        
+        function initializeDefaultModelsDragDrop() {
+            const modelCards = document.querySelectorAll('#default-models-grid .model-card');
+            
+            modelCards.forEach(card => {
+                card.removeEventListener('dragstart', handleDefaultDragStart);
+                card.removeEventListener('dragend', handleDefaultDragEnd);
+                card.removeEventListener('dragover', handleDefaultDragOver);
+                card.removeEventListener('dragenter', handleDefaultDragEnter);
+                card.removeEventListener('dragleave', handleDefaultDragLeave);
+                card.removeEventListener('drop', handleDefaultDrop);
+                
+                card.addEventListener('dragstart', handleDefaultDragStart);
+                card.addEventListener('dragend', handleDefaultDragEnd);
+                card.addEventListener('dragover', handleDefaultDragOver);
+                card.addEventListener('dragenter', handleDefaultDragEnter);
+                card.addEventListener('dragleave', handleDefaultDragLeave);
+                card.addEventListener('drop', handleDefaultDrop);
+                
+                card.setAttribute('draggable', 'true');
+            });
+        }
+        
+        function handleDefaultDragStart(e) {
+            dragSrcIndexDefault = parseInt(e.target.closest('.model-card').getAttribute('data-index'));
+            e.target.closest('.model-card').classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', dragSrcIndexDefault);
+        }
+        
+        function handleDefaultDragEnd(e) {
+            e.target.closest('.model-card').classList.remove('dragging');
+            document.querySelectorAll('#default-models-grid .model-card').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+            dragSrcIndexDefault = null;
+        }
+        
+        function handleDefaultDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+        
+        function handleDefaultDragEnter(e) {
+            e.preventDefault();
+            const target = e.target.closest('.model-card');
+            if (target && parseInt(target.getAttribute('data-index')) !== dragSrcIndexDefault) {
+                target.classList.add('drag-over');
+            }
+        }
+        
+        function handleDefaultDragLeave(e) {
+            const target = e.target.closest('.model-card');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+        }
+        
+        function handleDefaultDrop(e) {
+            e.preventDefault();
+            const target = e.target.closest('.model-card');
+            if (!target) return;
+            
+            target.classList.remove('drag-over');
+            const dragDestIndex = parseInt(target.getAttribute('data-index'));
+            
+            if (dragSrcIndexDefault !== null && dragSrcIndexDefault !== dragDestIndex) {
+                // Swap the data in the array
+                const temp = { ...defaultModelsData[dragSrcIndexDefault] };
+                defaultModelsData[dragSrcIndexDefault] = { ...defaultModelsData[dragDestIndex] };
+                defaultModelsData[dragDestIndex] = temp;
+                
+                // Re-render the grid
+                renderDefaultModelsGrid();
+                
+                // Save the new order to localStorage
+                saveOrderToLocalStorage();
+            }
+        }
+        
+        function renderDefaultModelsGrid() {
+            const grid = document.getElementById('default-models-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            if (!defaultModelsData || defaultModelsData.length === 0) {
+                grid.innerHTML = '<div class="text-center py-10 col-span-full"><p class="text-gray-500">{{ __("No models found") }}</p></div>';
+                return;
+            }
+            
+            defaultModelsData.forEach((model, index) => {
+                const card = document.createElement('div');
+                card.className = 'model-card group rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 cursor-move';
+                card.setAttribute('data-index', index);
+                card.setAttribute('data-model-id', model.id);
+                card.setAttribute('draggable', 'true');
+                
+                card.innerHTML = `
+                    <div class="aspect-[3/4] overflow-hidden bg-gray-100 dark:bg-gray-900">
+                        <img 
+                            src="${model.thumbnail}" 
+                            alt="${model.name}"
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                            onerror="this.src='${model.image_url}'"
+                        >
+                    </div>
+                    <div class="p-4 text-center">
+                        <h4 class="model-name text-gray-900 dark:text-white font-semibold text-lg">${escapeHtml(model.name)}</h4>
+                        <p class="model-gender text-gray-600 dark:text-gray-400 text-sm">${escapeHtml(model.gender)}</p>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            // Reinitialize drag drop events
+            initializeDefaultModelsDragDrop();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ============ CREATE TAB DRAG AND DROP FOR IMAGES ============
+        let uploadedFiles = [];
+        let dragSrcIndexCreate = null;
+        
+        function showTab(tab) {
+            document.getElementById('tab-content-default').classList.add('hidden');
+            document.getElementById('tab-content-create').classList.add('hidden');
+            document.getElementById('tab-content-' + tab).classList.remove('hidden');
+            
+            const defaultTab = document.getElementById('tab-default');
+            const createTab = document.getElementById('tab-create');
+            
+            defaultTab.className = 'pb-3 px-1 text-base font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-all';
+            createTab.className = 'pb-3 px-1 text-base font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-all';
+            
+            const activeTab = document.getElementById('tab-' + tab);
+            activeTab.className = 'pb-3 px-1 text-base font-semibold border-b-2 border-primary text-primary transition-all';
+        }
+        
+        // Handle file selection from input
+        if (document.getElementById('create-upload-input')) {
+            document.getElementById('create-upload-input').addEventListener('change', function(e) {
+                handleFiles(e.target.files);
+            });
+        }
+        
+        // Handle drag & drop for uploading
+        const dropZone = document.getElementById('drop-zone-create');
+        if (dropZone) {
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('border-primary', 'bg-primary/5');
+            });
+            
+            dropZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.classList.remove('border-primary', 'bg-primary/5');
+            });
+            
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('border-primary', 'bg-primary/5');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFiles(files);
+                }
+            });
+            
+            dropZone.addEventListener('click', function() {
+                document.getElementById('create-upload-input').click();
+            });
+        }
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    uploadedFiles.push(file);
+                }
+            });
+            updatePreview();
+        }
+        
+        function handleCreateDragStart(e) {
+            dragSrcIndexCreate = parseInt(e.target.closest('.preview-item').getAttribute('data-index'));
+            e.target.closest('.preview-item').classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', dragSrcIndexCreate);
+        }
+        
+        function handleCreateDragEnd(e) {
+            e.target.closest('.preview-item').classList.remove('dragging');
+            document.querySelectorAll('#create-preview .preview-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+            dragSrcIndexCreate = null;
+        }
+        
+        function handleCreateDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+        
+        function handleCreateDragEnter(e) {
+            e.preventDefault();
+            const target = e.target.closest('.preview-item');
+            if (target && parseInt(target.getAttribute('data-index')) !== dragSrcIndexCreate) {
+                target.classList.add('drag-over');
+            }
+        }
+        
+        function handleCreateDragLeave(e) {
+            const target = e.target.closest('.preview-item');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+        }
+        
+        function handleCreateDrop(e) {
+            e.preventDefault();
+            const target = e.target.closest('.preview-item');
+            if (!target) return;
+            
+            target.classList.remove('drag-over');
+            const dragDestIndex = parseInt(target.getAttribute('data-index'));
+            
+            if (dragSrcIndexCreate !== null && dragSrcIndexCreate !== dragDestIndex) {
+                // Swap the files in the array
+                const draggedItem = uploadedFiles[dragSrcIndexCreate];
+                uploadedFiles[dragSrcIndexCreate] = uploadedFiles[dragDestIndex];
+                uploadedFiles[dragDestIndex] = draggedItem;
+                
+                // Update preview
+                updatePreview();
+            }
+        }
+        
+        function updatePreview() {
+            const previewArea = document.getElementById('create-preview');
+            if (!previewArea) return;
+            
+            previewArea.innerHTML = '';
+            
+            if (uploadedFiles.length > 0) {
+                previewArea.classList.remove('hidden');
+                
+                uploadedFiles.forEach((file, index) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const div = document.createElement('div');
+                        div.className = 'preview-item relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm';
+                        div.setAttribute('draggable', 'true');
+                        div.setAttribute('data-index', index);
+                        div.setAttribute('data-filename', file.name);
+                        
+                        div.innerHTML = `
+                            <img src="${e.target.result}" class="w-full aspect-square object-cover pointer-events-none">
+                            <div class="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full z-10">${index + 1}</div>
+                            <button 
+                                onclick="event.stopPropagation(); removeImage(${index})"
+                                class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+                            >
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1.5 text-center truncate">
+                                ${file.name.length > 30 ? file.name.substring(0, 27) + '...' : file.name}
+                            </div>
+                            <div class="absolute inset-0 bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <svg class="w-8 h-8 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16M8 4v16M16 4v16" />
+                                </svg>
+                            </div>
+                        `;
+                        
+                        // Drag events for reordering
+                        div.addEventListener('dragstart', handleCreateDragStart);
+                        div.addEventListener('dragend', handleCreateDragEnd);
+                        div.addEventListener('dragover', handleCreateDragOver);
+                        div.addEventListener('dragenter', handleCreateDragEnter);
+                        div.addEventListener('dragleave', handleCreateDragLeave);
+                        div.addEventListener('drop', handleCreateDrop);
+                        
+                        previewArea.appendChild(div);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                previewArea.classList.add('hidden');
+            }
+        }
+        
+        function removeImage(index) {
+            uploadedFiles.splice(index, 1);
+            updatePreview();
+        }
+        
+        // Create model button handler
+                // Create model button handler with image upload
+        const createBtn = document.getElementById('create-model-btn');
+        if (createBtn) {
+            createBtn.addEventListener('click', async function() {
+                const modelName = document.getElementById('model-name').value;
+                const selectedGender = document.querySelector('input[name="gender"]:checked');
+                
+                if (!modelName) {
+                    alert('Please enter model name');
+                    return;
+                }
+                
+                if (!selectedGender) {
+                    alert('Please select gender');
+                    return;
+                }
+                
+                if (uploadedFiles.length === 0) {
+                    alert('Please upload at least one photo');
+                    return;
+                }
+                
+                // Disable button and show loading
+                createBtn.disabled = true;
+                createBtn.innerHTML = '📤 Uploading images...';
+                
+                try {
+                    const uploadedUrls = [];
+                    
+                    // Upload each image one by one
+                    for (let i = 0; i < uploadedFiles.length; i++) {
+                        const formData = new FormData();
+                        formData.append('image', uploadedFiles[i]);
+                        
+                        const response = await fetch('{{ route("fashion-studio.upload-image") }}', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            uploadedUrls.push(data.url);
+                        } else {
+                            throw new Error(data.message);
+                        }
+                    }
+                    
+                    // Save model to session
+                    const saveResponse = await fetch('{{ route("fashion-studio.save-custom-model") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            name: modelName,
+                            gender: selectedGender.value,
+                            images: uploadedUrls,
+                            thumbnail: uploadedUrls[0]
+                        })
+                    });
+                    
+                    const saveData = await saveResponse.json();
+                    
+                    if (saveData.success) {
+                        alert(`✅ Model "${modelName}" created successfully with ${uploadedUrls.length} photos!`);
+                        
+                        // Reset form
+                        document.getElementById('model-name').value = '';
+                        if (document.querySelector('input[name="gender"]:checked')) {
+                            document.querySelector('input[name="gender"]:checked').checked = false;
+                        }
+                        uploadedFiles = [];
+                        updatePreview();
+                        
+                        // Reload models
+                        await loadAllModels();
+                        
+                        // Switch to default tab
+                        showTab('default');
+                    } else {
+                        throw new Error(saveData.message);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('❌ Error: ' + error.message);
+                } finally {
+                    createBtn.disabled = false;
+                    createBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg> {{ __('Create New Model') }}`;
+                }
+            });
+        }
+        
+        // Function to load all models from server
+        async function loadAllModels() {
+            try {
+                const response = await fetch('{{ route("fashion-studio.get-all-models") }}', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    defaultModelsData = data.models;
+                    renderDefaultModelsGrid();
+                }
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+        
+        // Add reset button to page
+        function addResetButton() {
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'reset-btn';
+            resetBtn.innerHTML = '🔄 Reset to Default Order';
+            resetBtn.onclick = resetToDefaultOrder;
+            document.body.appendChild(resetBtn);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            defaultModelsData = loadOrderFromLocalStorage();
+            renderDefaultModelsGrid();
+            addResetButton();
+             
+
+        });
+    </script>
+@endsection
