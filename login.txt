@@ -1,0 +1,8 @@
+FTP Server - ftp://45.55.194.35:21 FTP User - ftp_app_pixelrunway_com FTP Password - a6f08340485e3 
+
+Link Redirect | Freelancer
+ 
+Database Name - app_pixelrunway_sdjsdv Database User - app_pixelrunway_sdjsdv Database Password - 0dd3a24dda7d38
+ 
+
+SuperAdmin link -  https://app.pixelrunway.com/login SuperAdmin User - Mukiibimackson@gmail.com SuperAdmin Password - SuperMack
