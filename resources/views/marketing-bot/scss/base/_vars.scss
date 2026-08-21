@@ -1,0 +1,83 @@
+@layer base {
+	:root {
+		--primary: 214 5% 26%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 214 5% 26%;
+		--secondary-foreground: 0 0% 100%;
+		--background: 90 8% 95%;
+		--foreground: 0 0% 20%;
+		--border: 0 0% 0% / 5%;
+		--gradient-1: 209 90% 66%;
+		--gradient-2: 304 66% 51%;
+		--gradient-3: 356 100% 64%;
+		--gradient-4: 37 100% 62%;
+		--gradient-5: 118 58% 52%;
+		--gradient-from: var(--gradient-1);
+		--gradient-via: var(--gradient-2);
+		--gradient-to: var(--gradient-4);
+		--gradient-stops: hsl(var(--gradient-1)), hsl(var(--gradient-2)), hsl(var(--gradient-3)), hsl(var(--gradient-4)), hsl(var(--gradient-5));
+
+		--font-heading: 'Spline Sans';
+		--font-body: 'Inter';
+
+		--h1-font-size: 1.3125rem; // 21px
+		--h1-font-weight: 600;
+
+		--h2-font-size: 1.25rem; // 20px;
+		--h2-font-weight: 600;
+
+		--h3-font-size: 1rem; // 16px
+		--h3-font-weight: 600;
+
+		--h4-font-size: 0.9375rem; // 15px
+
+		--h5-font-size: 0.875rem; // 14px
+
+		--h6-font-size: 0.8125rem; // 13px
+
+		--header-background: 0 0% 0% / 0%;
+		--header-border: 0 0% 0% / 0%;
+
+		--card-background: 0 0% 98%;
+		--card-rounded: 20px;
+
+		--surface-background: 0 0% 98%;
+
+		--dropdown-background: 0 0% 98%;
+
+		--header-height: 90px;
+
+		--navbar-fixed-width: 100px;
+		--navbar-foreground: 0 0% 20%;
+		--navbar-background-hover: 214 5% 26%;
+		--navbar-foreground-hover: var(--navbar-foreground);
+		--navbar-background-active: 214 5% 26%;
+		--navbar-foreground-active: var(--navbar-foreground);
+
+		--input-border: 0 0% 0% / 0%;
+		--input-rounded: 2rem;
+		--input-background: 90 8% 92%;
+	}
+
+	.theme-dark {
+		--secondary: 214 12% 38%;
+		--secondary-foreground: 0 0% 100%;
+		--background: 0 0% 16%;
+		--foreground: 0 0% 95%;
+		--border: 0 0% 100% / 5%;
+
+		--card-background: 0 0% 26%;
+
+		--dropdown-background: 0 0% 30%;
+
+		--surface-background: 0 0% 30%;
+
+		--navbar-background-hover: 0 0% 90%;
+		--navbar-foreground-hover: var(--navbar-foreground);
+		--navbar-background-active: 0 0% 90%;
+		--navbar-foreground-active: var(--navbar-foreground);
+
+		--input-border: 0 0% 0% / 0%;
+		--input-background: 0 0% 30%;
+	}
+}

@@ -150,6 +150,13 @@ class CreateVideoController extends BaseFashionStudioController
             ], 403);
         }
 
+        if (! $user->isSuperAdmin() && ! (bool) $plan->create_video) {
+            return response()->json([
+                'success' => false,
+                'message' => __('Your current plan does not support video creation.'),
+            ], 403);
+        }
+
         $neededCredit = $plan->create_video_weight ?? 1;
 
         // Credit balance check

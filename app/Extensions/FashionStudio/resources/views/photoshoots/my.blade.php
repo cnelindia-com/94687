@@ -1,5 +1,9 @@
 @php
     $videoProExtensionInstalled = \App\Helpers\Classes\MarketplaceHelper::isRegistered('ai-video-pro');
+    $canCreateVideo = \App\Helpers\Classes\PlanHelper::planMenuCheck(
+            \App\Helpers\Classes\PlanHelper::userPlan(),
+            'ext_fashion_studio_create_video'
+        );
 @endphp
 
 @extends('panel.layout.app', ['disable_tblr' => true])
@@ -241,12 +245,12 @@
                                                             </a>
                                                         </li>
                                                     </template>
-                                                    @if ($videoProExtensionInstalled)
+                                                    @if ($canCreateVideo)
                                                         <template x-if="!image.is_video">
                                                             <li>
                                                                 <a
                                                                     class="text-heading-foreground/2 flex px-5 py-2 transition-colors hover:bg-heading-foreground/[3%]"
-                                                                    @click="makeAction(image.id, 'video')"
+                                                                    @click.prevent="makeAction(image.id, 'video'); toggle('collapse')"
                                                                     href="javascript:void(0);"
                                                                 >
                                                                     <x-tabler-video class="me-2 size-5" />
@@ -434,7 +438,7 @@
                                             {{ __('Crop') }}
                                         </x-button>
                                     </template>
-                                    @if ($videoProExtensionInstalled)
+                                    @if ($canCreateVideo)
                                         <template x-if="!activeItem?.is_video">
                                             <x-button
                                                 class="text-xs font-medium"
