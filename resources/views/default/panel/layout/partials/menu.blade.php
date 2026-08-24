@@ -16,7 +16,7 @@
         $isActive       = data_get($item, 'is_active', false);
         $showCondition  = data_get($item, 'show_condition', true);
         $isAdminOnly    = data_get($item, 'is_admin', false);
-        $childrenCount  = data_get($item, 'children_count', 0);
+        $childrenCount  = count(data_get($item, 'children', []) ?: []) ?: (int) data_get($item, 'children_count', 0);
         $type           = data_get($item, 'type');
         $parentKey      = data_get($item, 'parent_key');
 
@@ -40,6 +40,27 @@
             continue;     
         }
     @endphp
+
+    {{-- Hide AI Fashion Studio parent; keep its children as normal top-level items --}}
+    @if ($key === 'ext_fashion_studio_dropdown')
+        @foreach (data_get($item, 'children', []) ?: [] as $fashionChild)
+            @php
+                $fashionKey = data_get($fashionChild, 'key');
+            @endphp
+            @if (!data_get($fashionChild, 'is_active', false) || !data_get($fashionChild, 'show_condition', true))
+                @continue
+            @endif
+            @if (!\App\Helpers\Classes\PlanHelper::planMenuCheck($userPlan, $fashionKey))
+                @continue
+            @endif
+            @php
+                $item = $fashionChild;
+                $type = data_get($fashionChild, 'type', 'item');
+            @endphp
+            @includeIf('default.components.navbar.partials.types.' . $type)
+        @endforeach
+        @continue
+    @endif
 
     {{-- Force top-level render for ext_fashion_studio_dropdown children --}}
     @if ($parentKey === 'ext_fashion_studio_dropdown')

@@ -299,6 +299,66 @@ class AdminController extends Controller
         ));
     }
 
+    public function usersAdjustCredits(Request $request, User $user): RedirectResponse
+    {
+        if (Helper::appIsDemo()) {
+            return back()->with(['message' => __('This feature is disabled in Demo version.'), 'type' => 'error']);
+        }
+
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        $request->validate([
+            'credit_amount' => 'required|integer|min:1',
+            'credit_action' => 'required|in:add,remove',
+        ]);
+
+        $amount = (int) $request->input('credit_amount');
+        $action = $request->input('credit_action');
+        $current = (int) ($user->total_credit ?? 0);
+
+        if ($action === 'remove' && $amount > $current) {
+            return back()->with([
+                'message' => __('Cannot remove more credits than the user currently has.'),
+                'type'    => 'error',
+            ]);
+        }
+
+        $type = $action === 'remove' ? 2 : 1;
+        $actionLabel = $action === 'add'
+            ? 'admin add ' . $amount . ' credits'
+            : 'admin remove ' . $amount . ' credits';
+
+        DB::table('credits')->insert([
+            'user_id'    => $user->id,
+            'credits'    => $amount,
+            'types'      => $type,
+            'action'     => $actionLabel,
+            'recordid'   => (string) auth()->id(),
+            'created_at' => now(),
+        ]);
+
+        DB::update('
+            UPDATE users
+            SET total_credit = (
+                SELECT
+                    COALESCE(SUM(CASE WHEN types = 1 THEN credits ELSE 0 END), 0) -
+                    COALESCE(SUM(CASE WHEN types = 2 THEN credits ELSE 0 END), 0)
+                FROM credits
+                WHERE user_id = users.id
+            )
+            WHERE id = ?
+        ', [$user->id]);
+
+        $message = $action === 'add'
+            ? __(':amount credits added successfully.', ['amount' => $amount])
+            : __(':amount credits removed successfully.', ['amount' => $amount]);
+
+        return back()->with([
+            'message' => $message,
+            'type'    => 'success',
+        ]);
+    }
+
     public function usersSendPasswordReset(User $user): RedirectResponse
     {
         if (Helper::appIsDemo()) {

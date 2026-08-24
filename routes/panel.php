@@ -474,6 +474,7 @@ Route::middleware(['auth', 'updateUserActivity', 'check.viewer.role'])
                         ->name('sendPasswordReset');
                     Route::get('/delete/{id}', [AdminController::class, 'usersDelete'])->name('delete');
                     Route::post('save', [AdminController::class, 'usersSave'])->name('update');
+                    Route::post('credits/{user}', [AdminController::class, 'usersAdjustCredits'])->name('credits.update');
 
                     Route::get('permissions', [AdminController::class, 'userPermissions'])->name('permissions');
                     Route::post('permission-save', [AdminController::class, 'userPermissionSave'])

@@ -5,9 +5,10 @@
 			: route(\App\Helpers\Classes\Helper::hasRoute($item['route']) ? $item['route'] : 'default');
 
 	$is_active = $href === url()->current();
+	$children = data_get($item, 'children', []) ?: [];
 
 	if (!$is_active) {
-		foreach ($item['children'] as $child) {
+		foreach ($children as $child) {
 			if (!Route::has($child['route'])) {
 				continue;
 			}
@@ -22,7 +23,6 @@
 		}
 	}
 
-	// Check if this item is in the bolt menu (middle_nav_items)
 	$middle_nav_urls = app(\App\Services\Common\MenuService::class)->boltMenu();
 	$is_bolt_parent = isset($item['key']) && in_array($item['key'], array_keys($middle_nav_urls));
 @endphp
@@ -30,11 +30,23 @@
 <x-navbar.item
 	id="{{ data_get($item, 'parent_key') ? data_get($item, 'parent_key') . '-' : '' }}{{ data_get($item, 'key') }}"
 	has-dropdown
+	x-init="dropdownOpen = {{ $is_active ? 'true' : 'false' }}"
 >
-<!-- pritam -->
+	<x-navbar.link
+		class:letter-icon="{{ data_get($item, 'letter_icon_bg') }}"
+		letter-icon-styles="{{ data_get($item, 'letter_icon_bg') }}"
+		data-name="{{ data_get($item, 'data-name') }}"
+		label="{!! __(data_get($item, 'label')) !!}"
+		href="#"
+		icon="{{ data_get($item, 'icon') }}"
+		active-condition="{{ $is_active }}"
+		letter-icon="{{ (int) data_get($item, 'letter_icon', 0) }}"
+		badge="{{ data_get($item, 'badge') ?? '' }}"
+		dropdown-trigger
+	/>
 
-	<x-navbar.dropdown.dropdown open="true">
-		@foreach ($item['children'] as $child)
+	<x-navbar.dropdown.dropdown>
+		@foreach ($children as $child)
 			@php
 				$key = data_get($child, 'key');
 			@endphp
@@ -52,7 +64,6 @@
 						// Hide icon for bolt menu items in dropdown when parent is in bolt menu
 						$dropdown_icon = ($is_bolt_parent && data_get($child, 'bolt_menu')) ? '' : ($child['icon'] ?? '');
 
-						// same active class like parent
 						$child_class = $child_is_active ? 'testaihwe' : '';
 					@endphp
 

@@ -1,8 +1,11 @@
 @php
     $videoProExtensionInstalled = \App\Helpers\Classes\MarketplaceHelper::isRegistered('ai-video-pro');
-    $canCreateVideo = \App\Helpers\Classes\PlanHelper::planMenuCheck(
-            \App\Helpers\Classes\PlanHelper::userPlan(),
-            'ext_fashion_studio_create_video'
+    $user = auth()->user();
+    $plan = $user?->relationPlan ?? $user?->teamMember?->team?->user?->relationPlan;
+    $canCreateVideo = $user?->isSuperAdmin()
+        || (
+            (bool) $plan?->create_video
+            && $user?->teamMember?->team_role !== 'viewer'
         );
 @endphp
 

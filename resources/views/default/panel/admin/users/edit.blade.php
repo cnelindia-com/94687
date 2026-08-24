@@ -130,7 +130,59 @@
                     @endforeach
                 </optgroup>
             </x-forms.input>
-            
+
+            @if (auth()->user()?->isSuperAdmin())
+                <div class="space-y-4 rounded-lg border border-foreground/10 p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-2xs font-medium">{{ __('User Current Credits') }}</span>
+                        <span class="text-sm font-semibold">{{ number_format((int) ($user->total_credit ?? 0)) }}</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-5">
+                            <x-forms.input
+                                id="credit_amount"
+                                type="number"
+                                name="credit_amount"
+                                size="lg"
+                                min="1"
+                                step="1"
+                                required
+                                form="credit-adjust-form"
+                                label="{{ __('Credit Amount') }}"
+                                placeholder="{{ __('Enter amount') }}"
+                            />
+
+                            <x-forms.input
+                                id="credit_action"
+                                type="select"
+                                name="credit_action"
+                                size="lg"
+                                form="credit-adjust-form"
+                                label="{{ __('Action') }}"
+                            >
+                                <option value="add">{{ __('Add Credits') }}</option>
+                                <option value="remove">{{ __('Remove Credits') }}</option>
+                            </x-forms.input>
+                        </div>
+
+                        <x-button
+                            class="w-full"
+                            type="submit"
+                            variant="outline"
+                            size="lg"
+                            form="credit-adjust-form"
+                        >
+                            {{ __('Update Credits') }}
+                        </x-button>
+                    </div>
+                </div>
+            @else
+                <div class="flex items-center justify-between rounded-lg border border-foreground/10 px-4 py-3">
+                    <span class="text-2xs font-medium">{{ __('User Current Credits') }}</span>
+                    <span class="text-sm font-semibold">{{ number_format((int) ($user->total_credit ?? 0)) }}</span>
+                </div>
+            @endif
 
             <div x-data="{ showContent: false }">
                 <x-button
@@ -186,6 +238,17 @@
     >
         @csrf
     </form>
+
+    @if (auth()->user()?->isSuperAdmin())
+        <form
+            id="credit-adjust-form"
+            method="POST"
+            action="{{ route('dashboard.admin.users.credits.update', $user) }}"
+            class="hidden"
+        >
+            @csrf
+        </form>
+    @endif
 @endsection
 
 @push('script')
