@@ -260,16 +260,32 @@ class MenuService
     protected function applySidebarLabelOverrides(array $data): array
     {
         $labels = [
-            'api_integration' => 'All Models API',
-            'user_management' => 'User Settings',
-            'frontend'        => 'Frontend Settings',
-            'finance'         => 'Pricing Settings',
-            'templates'       => 'Templates Settings',
+            'api_integration'               => 'All Models API',
+            'user_management'               => 'User Settings',
+            'frontend'                      => 'Frontend Settings',
+            'finance'                       => 'Pricing Settings',
+            'templates'                     => 'Templates Settings',
+            'ext_fashion_studio_edit_image' => 'Fashion PlayGround',
         ];
 
         foreach ($labels as $key => $label) {
             if (isset($data[$key])) {
                 $data[$key]['label'] = $label;
+            }
+        }
+
+        // Override nested children labels (e.g. Fashion PlayGround under AI Fashion Studio).
+        foreach ($data as $parentKey => $parent) {
+            $children = data_get($parent, 'children');
+            if (! is_array($children)) {
+                continue;
+            }
+
+            foreach ($children as $childKey => $child) {
+                $childMenuKey = data_get($child, 'key', $childKey);
+                if (is_string($childMenuKey) && isset($labels[$childMenuKey])) {
+                    $data[$parentKey]['children'][$childKey]['label'] = $labels[$childMenuKey];
+                }
             }
         }
 
@@ -767,7 +783,7 @@ class MenuService
                 'parent_key'       => 'ext_fashion_studio_dropdown',
                 'key'              => 'ext_fashion_studio_edit_image',
                 'route'            => 'dashboard.user.fashion-studio.edit_image.index',
-                'label'            => 'Edit Image',
+                'label'            => 'Fashion PlayGround',
                 'data-name'        => null,
                 'icon'             => 'tabler-pencil',
                 'svg'              => null,

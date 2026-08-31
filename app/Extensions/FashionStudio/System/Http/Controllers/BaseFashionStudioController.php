@@ -40,6 +40,16 @@ abstract class BaseFashionStudioController extends Controller
     abstract protected function getImageUrls(): array;
     abstract protected function getResponseKey(): string;
 
+    /**
+     * Source info for GTM events (photoshoot, virtual try-on, etc.).
+     *
+     * @return array{source: string, source_label: string, credits_label: string, item: string, event_name: string}
+     */
+    protected function getGtmSourceInfo(): array
+    {
+        return \App\Services\Analytics\GoogleTagManager::sourceFromAssetType($this->getSlugSuffix());
+    }
+
     protected function getNumImages(): int
     {
         return 1;
@@ -88,11 +98,14 @@ abstract class BaseFashionStudioController extends Controller
             return;
         }
 
+        $gtmSource = $this->getGtmSourceInfo();
+        $creditAction = $gtmSource['credits_label'];
+
         DB::table('credits')->insert([
             'user_id'    => $user->id,
             'credits'    => $creditsToDeduct,
             'types'      => 2,
-            'action'     => $this->getUserSettings()->resolution . ' image created',
+            'action'     => $creditAction,
             'created_at' => now(),
             'recordid'   => $record->id,
         ]);
@@ -113,6 +126,16 @@ abstract class BaseFashionStudioController extends Controller
             SET u.total_credit = c.net_credit
             WHERE u.id = ?
         ", [$userId, $userId]);
+
+        // Only fire when credits are fully used up — not on every generation.
+        \App\Services\Analytics\GoogleTagManager::creditsUsedIfExhausted($user, (int) $creditsToDeduct, [
+            'record_id'    => $record->id,
+            'resolution'   => $this->getUserSettings()->resolution,
+            'source'       => $gtmSource['source'],
+            'source_label' => $gtmSource['source_label'],
+            'action'       => $creditAction,
+            'item'         => $gtmSource['item'] ?? 'Image',
+        ]);
     }
 
     protected function refundCreditsForRecord(UserOpenai $record): void
@@ -216,6 +239,16 @@ abstract class BaseFashionStudioController extends Controller
             'user_name' => $user?->name
         ]);
     }
+
+    $gtmSource = $this->getGtmSourceInfo();
+    $payloadData = array_merge($payloadData, [
+        'gtm_source'         => $gtmSource['source'],
+        'gtm_source_label'   => $gtmSource['source_label'],
+        'gtm_credits_label'  => $gtmSource['credits_label'],
+        'gtm_item'           => $gtmSource['item'] ?? 'Image',
+        'gtm_event_name'     => $gtmSource['event_name'] ?? \App\Services\Analytics\GoogleTagManager::imageEventNameFromItem($gtmSource['item'] ?? 'Image'),
+        'slug_suffix'        => $this->getSlugSuffix(),
+    ]);
 
     $record = UserOpenai::create([
         'team_id'    => $teamId,  // <-- FIX

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Helpers\Classes\MarketplaceHelper;
+use App\Services\Analytics\GoogleTagManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Throwable;
@@ -28,6 +29,10 @@ class UserOrder extends Model
     protected static function booted(): void
     {
         static::created(static function ($model) {
+            if (in_array($model->status, ['Success', 'Approved'], true)) {
+                GoogleTagManager::purchaseFromOrder($model);
+            }
+
             if ($model->plan && $model->plan['hidden'] && $model->plan['max_subscribe'] != -1 && $model->plan['max_subscribe'] != 0) {
                 $model->plan['max_subscribe'] -= 1;
                 $model->plan->save();
@@ -62,6 +67,15 @@ class UserOrder extends Model
                     $response = \Dcblogdev\Xero\Facades\Xero::invoices()->store($data);
                 } catch (Throwable $e) {
                 }
+            }
+        });
+
+        static::updated(static function ($model) {
+            if (
+                $model->wasChanged('status')
+                && in_array($model->status, ['Success', 'Approved'], true)
+            ) {
+                GoogleTagManager::purchaseFromOrder($model);
             }
         });
     }

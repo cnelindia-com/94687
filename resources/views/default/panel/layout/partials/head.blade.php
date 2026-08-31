@@ -107,6 +107,8 @@
         {!! $setting->dashboard_code_before_head !!}
     @endif
 
+    @include('components.google-tag-manager', ['placement' => 'head'])
+    @include('components.gtm-events')
     {!! setting('google_tag_manager', '') !!}
 
     <script>

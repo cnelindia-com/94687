@@ -12,6 +12,7 @@ use App\Extensions\FashionStudio\System\Models\Wardrobe;
 use App\Extensions\FashionStudio\System\Services\FashionStudioFalAIService;
 use App\Models\User;
 use App\Models\UserOpenai;
+use App\Services\Analytics\GoogleTagManager;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -206,6 +207,8 @@ class CheckFalAIGenerationJob implements ShouldQueue
                     'status'    => $fresh->status,
                 ]);
 
+                GoogleTagManager::videoGenerated($record);
+
                 return;
             }
         }
@@ -236,6 +239,8 @@ class CheckFalAIGenerationJob implements ShouldQueue
                     // Trial watermark lagao agar user trial plan pe hai
                     $this->applyTrialWatermarkIfNeeded($record, $localPath);
 
+                    $isFirstImage = $this->isFirstCompletedImageForUser($record);
+
                     $outputField = $this->getOutputField();
                     $record->update([
                         'status'     => ImageStatusEnum::completed->value,
@@ -246,12 +251,38 @@ class CheckFalAIGenerationJob implements ShouldQueue
                         $this->createAdditionalImageRecords($record, array_slice($images, 1));
                     }
 
+                    // Pass modelType for pose/background/model/product; user_openai uses payload source.
+                    $gtmModelType = $this->modelType === 'user_openai' ? null : $this->modelType;
+                    GoogleTagManager::imageGenerated($record, $isFirstImage, $gtmModelType);
+
                     return;
                 }
             }
         }
 
         $this->releaseOrFail($record);
+    }
+
+    protected function isFirstCompletedImageForUser(Model $record): bool
+    {
+        $userId = (int) ($record->user_id ?? 0);
+        if (! $userId) {
+            return false;
+        }
+
+        $config = self::MODEL_CONFIGS[$this->modelType] ?? null;
+        if (! $config) {
+            return false;
+        }
+
+        /** @var class-string<Model> $modelClass */
+        $modelClass = $config['class'];
+
+        return ! $modelClass::query()
+            ->where('user_id', $userId)
+            ->where('id', '!=', $record->id)
+            ->where('status', ImageStatusEnum::completed->value)
+            ->exists();
     }
 
     // =========================================================================

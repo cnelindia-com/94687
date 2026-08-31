@@ -7,6 +7,7 @@ use App\Models\Finance\Subscription;
 use App\Models\Plan;
 use App\Models\Team\TeamMember;
 use App\Models\User;
+use App\Services\Analytics\GoogleTagManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -165,7 +166,9 @@ class TrialPlanService
             return;
         }
 
-        DB::transaction(function () use ($user, $plan) {
+        $subscription = null;
+
+        DB::transaction(function () use ($user, $plan, &$subscription) {
 
             Log::info('Starting subscription transaction', [
                 'user_id' => $user->id,
@@ -242,6 +245,10 @@ class TrialPlanService
         Log::info('Default plan assigned successfully', [
             'user_id' => $user->id,
         ]);
+
+        if ($subscription) {
+            GoogleTagManager::trialStarted($user, $plan, $subscription);
+        }
     }
 
     /**

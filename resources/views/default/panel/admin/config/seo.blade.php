@@ -25,6 +25,20 @@
             </div>
 
             <div class="col-md-12">
+                <div class="mb-4">
+                    <label class="form-label">{{ __('Google Container ID') }} (GTM-xxxxxx)</label>
+                    <input
+                            class="form-control"
+                            id="google_container_id"
+                            type="text"
+                            name="google_container_id"
+                            value="{{ setting('google_container_id', '') }}"
+                            placeholder="GTM-XXXXXXX"
+                    >
+                </div>
+            </div>
+
+            <div class="col-md-12">
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label m-0">{{ __('Meta Title') }}</label>

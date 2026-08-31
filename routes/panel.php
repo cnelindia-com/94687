@@ -37,6 +37,7 @@ use App\Http\Controllers\Common\Settings\FalAISettingController as CommonFalAISe
 use App\Http\Controllers\Dashboard\AdminController;
 use App\Http\Controllers\Dashboard\BrandController;
 use App\Http\Controllers\Dashboard\DebugController;
+use App\Http\Controllers\Dashboard\GtmEventsController;
 use App\Http\Controllers\Dashboard\NotificationController;
 use App\Http\Controllers\Dashboard\SearchController;
 use App\Http\Controllers\Dashboard\SettingsController;
@@ -88,6 +89,8 @@ Route::middleware(['auth', 'updateUserActivity', 'check.viewer.role'])
             ->name('user.')
             ->group(callback: function () {
                 Route::get('', [UserController::class, 'index'])->name('index');
+
+                Route::get('gtm-events', [GtmEventsController::class, 'index'])->name('gtm.events');
 
                 Route::get('check/payment', [PaymentProcessController::class, 'checkSubscriptionStatusFromAjax'])->name('check.payment');
                 Route::get('check/update-available', [UserController::class, 'updateAvailable'])->name('check.update-available');

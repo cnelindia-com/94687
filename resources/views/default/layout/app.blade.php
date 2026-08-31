@@ -110,6 +110,9 @@
     {!! adsense_header() !!}
     <!--Google AdSense End-->
 
+    @include('components.google-tag-manager', ['placement' => 'head'])
+    @include('components.gtm-events')
+
     {{-- Rewordfull start --}}
     {{-- <script>(function(w,r){w._rwq=r;w[r]=w[r]||function(){(w[r].q=w[r].q||[]).push(arguments)}})(window,'rewardful');</script> --}}
     {{-- <script async src='https://r.wdfl.co/rw.js' data-rewardful='API_KEY'></script> --}}
@@ -127,6 +130,7 @@
 </head>
 
 <body class="group/body bg-background font-body text-foreground">
+    @include('components.google-tag-manager', ['placement' => 'body'])
     <div
         class="pointer-events-none invisible fixed left-0 right-0 top-0 z-[99] opacity-0 transition-opacity"
         id="app-loading-indicator"

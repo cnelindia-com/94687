@@ -54,6 +54,15 @@ class PoseController extends Controller
             SET u.total_credit = c.net_credit
             WHERE u.id = ?
         ", [$userId, $userId]);
+
+        $source = \App\Services\Analytics\GoogleTagManager::sourceFromAssetType('pose');
+        \App\Services\Analytics\GoogleTagManager::creditsUsedById($userId, $credits, [
+            'record_id'    => $recordId,
+            'source'       => $source['source'],
+            'source_label' => $source['source_label'],
+            'action'       => $source['credits_label'],
+            'item'         => $source['item'],
+        ]);
     }
 
     /**
@@ -185,7 +194,7 @@ class PoseController extends Controller
                 'generation_uuid' => $requestId,
             ]);
 
-            $this->deductCreditsForRecord($userId, $pose->id, 1, 'Pose created');
+            $this->deductCreditsForRecord($userId, $pose->id, 1, 'Credits used for Pose creation');
 
             // Dispatch job to check generation status
             CheckFalAIGenerationJob::dispatch($pose->id, 'image', 'pose')->delay(now()->addSeconds(5));

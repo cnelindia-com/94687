@@ -690,7 +690,7 @@ class MenuService
                 'parent_key'       => 'ext_fashion_studio_dropdown',
                 'key'              => 'ext_fashion_studio_edit_image',
                 'route'            => 'dashboard.user.fashion-studio.edit_image.index',
-                'label'            => 'Edit Image1',
+                'label'            => 'Fashion PlayGround',
                 'data-name'        => null,
                 'icon'             => 'tabler-pencil',
                 'svg'              => null,

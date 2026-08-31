@@ -52,6 +52,7 @@
         'hide-titlebar' => isset($disable_titlebar),
     ])
 >
+    @include('components.google-tag-manager', ['placement' => 'body'])
     @includeIf('panel.layout.after-body-open-immediate')
     @stack('after-body-open-immediate')
 
