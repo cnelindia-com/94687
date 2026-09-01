@@ -20,9 +20,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use App\Helpers\Classes\Helper;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -185,10 +187,10 @@ class CheckFalAIGenerationJob implements ShouldQueue
         $response = FashionStudioFalAIService::checkVideo($uuid);
 
         if ($response && isset($response['video_url'])) {
-            $localPath = $this->downloadAndSaveFile($response['video_url'], 'mp4', 'video');
+            $localPath = $this->downloadAndSaveFile($response['video_url'], 'mp4', 'video', $record);
 
             if ($localPath) {
-                Log::info('LOCAL PATH GENERATED', ['path' => $localPath, 'record_id' => $record->id]);
+                Log::info('FILE PATH GENERATED', ['path' => $localPath, 'record_id' => $record->id]);
 
                 $outputField            = $this->getOutputField();
                 $record->{$outputField} = $localPath;
@@ -233,18 +235,17 @@ class CheckFalAIGenerationJob implements ShouldQueue
             }
 
             if (! empty($images)) {
-                $localPath = $this->downloadAndSaveFile($images[0], null, 'image');
+                // Saves to DigitalOcean Spaces (s3) / R2 / local based on ai_image_storage.
+                $localPath = $this->downloadAndSaveFile($images[0], null, 'image', $record);
 
                 if ($localPath) {
-                    // Trial watermark lagao agar user trial plan pe hai
-                    $this->applyTrialWatermarkIfNeeded($record, $localPath);
-
                     $isFirstImage = $this->isFirstCompletedImageForUser($record);
 
                     $outputField = $this->getOutputField();
                     $record->update([
                         'status'     => ImageStatusEnum::completed->value,
                         $outputField => $localPath,
+                        'storage'    => $this->resolveImageStorageDriver(),
                     ]);
 
                     if ($this->modelType === 'user_openai' && count($images) > 1) {
@@ -342,7 +343,10 @@ class CheckFalAIGenerationJob implements ShouldQueue
         'path'       => $localPath,
     ]);
 
-    $fullDiskPath = public_path(ltrim($localPath, '/'));
+    // Temp absolute path OR legacy public-relative path.
+    $fullDiskPath = is_file($localPath)
+        ? $localPath
+        : public_path(ltrim($localPath, '/'));
 
     if (! file_exists($fullDiskPath)) {
         Log::error('CheckFalAIGenerationJob: File not found on disk', [
@@ -591,48 +595,164 @@ class CheckFalAIGenerationJob implements ShouldQueue
     // ORIGINAL METHODS
     // =========================================================================
 
-    protected function downloadAndSaveFile(string $url, ?string $defaultExtension = null, string $fileType = 'image'): ?string
+    /**
+     * Fashion Studio generated files must go to DigitalOcean Spaces (s3) when configured.
+     * Reads settings_two fresh from DB so queue workers don't use a stale "public" cache.
+     */
+    protected function resolveImageStorageDriver(): string
     {
+        $driver = null;
+
+        try {
+            $driver = DB::table('settings_two')->value('ai_image_storage');
+        } catch (Exception $e) {
+            // fall through
+        }
+
+        if (! $driver) {
+            $driver = Helper::settingTwo('ai_image_storage');
+        }
+
+        $driver = strtolower(trim((string) ($driver ?: 'public')));
+
+        // Prefer DigitalOcean Spaces whenever AWS/Spaces credentials exist.
+        if ($this->isS3Configured()) {
+            return 's3';
+        }
+
+        if ($driver === 'r2' && $this->isR2Configured()) {
+            return 'r2';
+        }
+
+        return in_array($driver, ['s3', 'r2', 'public'], true) ? $driver : 'public';
+    }
+
+    protected function isS3Configured(): bool
+    {
+        $disk = config('filesystems.disks.s3', []);
+
+        return filled($disk['key'] ?? null)
+            && filled($disk['secret'] ?? null)
+            && filled($disk['bucket'] ?? null);
+    }
+
+    protected function isR2Configured(): bool
+    {
+        $disk = config('filesystems.disks.r2', []);
+
+        return filled($disk['key'] ?? null)
+            && filled($disk['secret'] ?? null)
+            && filled($disk['bucket'] ?? null);
+    }
+
+    /**
+     * Download FalAI output and upload to DigitalOcean Spaces (s3).
+     * Local public disk is only used if cloud storage is not configured.
+     */
+    protected function downloadAndSaveFile(
+        string $url,
+        ?string $defaultExtension = null,
+        string $fileType = 'image',
+        ?Model $record = null
+    ): ?string {
+        $tmpPath = null;
+
         try {
             $response = Http::timeout(120)->get($url);
 
-            if ($response->successful()) {
-                $extension = $defaultExtension ?? pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
-                $fileName  = Str::uuid()->toString() . '.' . $extension;
-                $folder    = $fileType === 'video' ? 'videos' : 'images';
+            if (! $response->successful()) {
+                return null;
+            }
 
-                $relativePath = 'uploads/media/' . $folder . '/u-' . $this->getUserId();
-                $fullPath     = public_path($relativePath);
+            $extension = $defaultExtension ?? pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+            $extension = strtolower(preg_replace('/[^a-z0-9]/i', '', $extension) ?: 'png');
+            $fileName  = Str::uuid()->toString() . '.' . $extension;
+            $folder    = $fileType === 'video' ? 'videos' : 'images';
+            $relativeKey = 'uploads/media/' . $folder . '/u-' . ($this->getUserId() ?? 0) . '/' . $fileName;
 
-                if (! file_exists($fullPath)) {
-                    mkdir($fullPath, 0777, true);
+            $tmpPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+            file_put_contents($tmpPath, $response->body());
+
+            if (! is_file($tmpPath)) {
+                Log::error('IMAGE NOT SAVED TO TEMP', ['path' => $tmpPath]);
+
+                return null;
+            }
+
+            // Watermark on temp file before uploading to Spaces.
+            if ($fileType === 'image' && $record) {
+                $this->applyTrialWatermarkIfNeeded($record, $tmpPath);
+            }
+
+            $content = file_get_contents($tmpPath);
+            if ($content === false) {
+                return null;
+            }
+
+            $imageStorage = $this->resolveImageStorageDriver();
+            $savedUrl = null;
+
+            if ($imageStorage === 's3') {
+                if (! $this->isS3Configured()) {
+                    throw new RuntimeException('DigitalOcean Spaces (s3) is not configured in .env');
                 }
 
-                $filePath = $fullPath . '/' . $fileName;
-                file_put_contents($filePath, $response->body());
+                Storage::disk('s3')->put($relativeKey, $content, 'public');
+                $savedUrl = Storage::disk('s3')->url($relativeKey);
+
+                // Safety: never accept a local app URL as an s3 result.
+                if (is_string($savedUrl) && str_contains($savedUrl, '/uploads/media/') && ! str_contains($savedUrl, 'digitaloceanspaces.com') && ! str_contains($savedUrl, '.amazonaws.com') && ! str_contains($savedUrl, (string) config('filesystems.disks.s3.url'))) {
+                    Log::warning('S3 url looks local — check AWS_URL / Spaces CDN URL', ['url' => $savedUrl]);
+                }
+            } elseif ($imageStorage === 'r2') {
+                Storage::disk('r2')->put($relativeKey, $content);
+                $savedUrl = Storage::disk('r2')->url($relativeKey);
+            } else {
+                Log::warning('Fashion Studio falling back to local storage — configure AWS/Spaces credentials', [
+                    'record_id' => $this->recordId,
+                ]);
+
+                $fullDir = public_path(dirname($relativeKey));
+                if (! file_exists($fullDir)) {
+                    mkdir($fullDir, 0777, true);
+                }
+
+                $filePath = public_path($relativeKey);
+                file_put_contents($filePath, $content);
 
                 if (! file_exists($filePath)) {
                     Log::error('IMAGE NOT SAVED', ['path' => $filePath]);
+
                     return null;
                 }
 
-                $savedUrl = '/' . $relativePath . '/' . $fileName;
-                $savedUrl = preg_replace('/\s+/', '', $savedUrl);
-
-                Log::info('IMAGE SAVED SUCCESSFULLY', [
-                    'path' => $filePath,
-                    'url'  => $savedUrl,
-                ]);
-
-                return $savedUrl;
+                $savedUrl = '/' . $relativeKey;
             }
+
+            $savedUrl = preg_replace('/\s+/', '', (string) $savedUrl);
+
+            if ($record instanceof UserOpenai) {
+                $record->storage = $imageStorage;
+            }
+
+            Log::info('FASHION STUDIO FILE SAVED', [
+                'storage' => $imageStorage,
+                'url'     => $savedUrl,
+                'key'     => $relativeKey,
+            ]);
+
+            return $savedUrl;
         } catch (Exception $e) {
-            Log::error('CheckFalAIGenerationJob: Error downloading file', [
+            Log::error('CheckFalAIGenerationJob: Error downloading/uploading file', [
                 'url'        => $url,
                 'error'      => $e->getMessage(),
                 'record_id'  => $this->recordId,
                 'model_type' => $this->modelType,
             ]);
+        } finally {
+            if ($tmpPath && is_file($tmpPath)) {
+                @unlink($tmpPath);
+            }
         }
 
         return null;
@@ -647,7 +767,7 @@ class CheckFalAIGenerationJob implements ShouldQueue
     protected function createAdditionalImageRecords(Model $record, array $additionalImages): void
     {
         foreach ($additionalImages as $index => $imageUrl) {
-            $localPath = $this->downloadAndSaveFile($imageUrl);
+            $localPath = $this->downloadAndSaveFile($imageUrl, null, 'image', $record);
 
             if (! $localPath) {
                 continue;
@@ -660,6 +780,7 @@ class CheckFalAIGenerationJob implements ShouldQueue
             $newRecord->hash       = str()->random(256);
             $newRecord->status     = ImageStatusEnum::completed->value;
             $newRecord->output     = $localPath;
+            $newRecord->storage    = $this->resolveImageStorageDriver();
             $newRecord->created_at = now();
             $newRecord->updated_at = now();
             $newRecord->save();
