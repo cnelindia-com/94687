@@ -1,5 +1,12 @@
 @php
     $videoProExtensionInstalled = \App\Helpers\Classes\MarketplaceHelper::isRegistered('ai-video-pro');
+    $user = auth()->user();
+    $plan = $user?->relationPlan ?? $user?->teamMember?->team?->user?->relationPlan;
+    $canCreateVideo = $user?->isSuperAdmin()
+        || (
+            (bool) $plan?->create_video
+            && $user?->teamMember?->team_role !== 'viewer'
+        );
 @endphp
 
 @extends('panel.layout.app', ['disable_tblr' => true])
@@ -37,7 +44,7 @@
 @section('content')
     <div
         class="py-12"
-        x-data="myPhotoShootsComponent"
+        x-data="myPhotoShootsComponent()"
         @keyup.escape.window="isCropMode ? exitCropMode() : (modalShow = false)"
         @keyup.arrow-left.window="modalShow && !isCropMode && prevItem()"
         @keyup.arrow-right.window="modalShow && !isCropMode && nextItem()"
@@ -126,17 +133,36 @@
                                     </template>
 
                                     <template x-if="image.is_video && !image.is_processing">
-                                        <video
-                                            class="aspect-square h-auto w-full object-cover object-center"
-                                            :src="image.url"
-                                            :alt="image.title || image.input"
-                                            muted
-                                            loop
-                                            playsinline
-                                            @mouseenter="$el.play()"
-                                            @mouseleave="$el.pause(); $el.currentTime = 0;"
-                                            @click="setActiveItem({...image, output: image.url}), modalShow = true"
-                                        ></video>
+                                        <div
+                                            class="relative aspect-square size-full cursor-pointer overflow-hidden bg-muted"
+                                            @click="setActiveItem({...image, output: mediaOutputUrl(image)}), modalShow = true"
+                                            @mouseenter="startVideoPreview($event, image)"
+                                            @mouseleave="stopVideoPreview($event)"
+                                        >
+                                            {{-- Instant still poster (source image) — no MP4 download needed --}}
+                                            <template x-if="image.thumbnail">
+                                                <img
+                                                    class="absolute inset-0 size-full object-cover object-center transition-opacity duration-200"
+                                                    :src="image.thumbnail"
+                                                    :alt="image.title || image.input"
+                                                    loading="lazy"
+                                                />
+                                            </template>
+                                            <template x-if="!image.thumbnail">
+                                                <div class="absolute inset-0 grid place-items-center text-muted-foreground">
+                                                    <x-tabler-video class="size-10 opacity-60" />
+                                                </div>
+                                            </template>
+                                            {{-- Video src attached only on hover so gallery reload stays fast --}}
+                                            <video
+                                                class="absolute inset-0 size-full object-cover object-center opacity-0 transition-opacity duration-200"
+                                                muted
+                                                loop
+                                                playsinline
+                                                preload="none"
+                                                :data-src="image.original_url || image.url"
+                                            ></video>
+                                        </div>
                                     </template>
                                     <template x-if="!image.is_video && !image.is_processing">
                                         <img
@@ -144,7 +170,7 @@
                                             :src="image.thumbnail || image.url"
                                             :alt="image.title || image.input"
                                             loading="lazy"
-                                            @click="!image.is_processing && (setActiveItem({...image, output: image.url}), modalShow = true)"
+                                            @click="!image.is_processing && (setActiveItem({...image, output: mediaOutputUrl(image)}), modalShow = true)"
                                         >
                                     </template>
 
@@ -241,12 +267,12 @@
                                                             </a>
                                                         </li>
                                                     </template>
-                                                    @if ($videoProExtensionInstalled)
+                                                    @if ($canCreateVideo)
                                                         <template x-if="!image.is_video">
                                                             <li>
                                                                 <a
                                                                     class="text-heading-foreground/2 flex px-5 py-2 transition-colors hover:bg-heading-foreground/[3%]"
-                                                                    @click="makeAction(image.id, 'video')"
+                                                                    @click.prevent="makeAction(image.id, 'video'); toggle('collapse')"
                                                                     href="javascript:void(0);"
                                                                 >
                                                                     <x-tabler-video class="me-2 size-5" />
@@ -434,7 +460,7 @@
                                             {{ __('Crop') }}
                                         </x-button>
                                     </template>
-                                    @if ($videoProExtensionInstalled)
+                                    @if ($canCreateVideo)
                                         <template x-if="!activeItem?.is_video">
                                             <x-button
                                                 class="text-xs font-medium"
@@ -686,6 +712,51 @@ handleScroll() {
                     this.activeItemId = data.id;
                 },
 
+                // Videos play from CDN (original_url); images keep proxy url for crop/CORS.
+                mediaOutputUrl(image) {
+                    if (!image) return '';
+                    if (image.is_video) {
+                        return image.original_url || image.url || '';
+                    }
+                    return image.url || image.original_url || '';
+                },
+
+                startVideoPreview(event, image) {
+                    const root = event.currentTarget;
+                    const video = root.querySelector('video');
+                    const poster = root.querySelector('img');
+                    if (!video) return;
+
+                    const src = video.dataset.src || image.original_url || image.url;
+                    if (!src) return;
+
+                    if (video.getAttribute('src') !== src) {
+                        video.setAttribute('src', src);
+                        video.load();
+                    }
+
+                    const showVideo = () => {
+                        video.classList.remove('opacity-0');
+                        if (poster) poster.classList.add('opacity-0');
+                    };
+
+                    video.play().then(showVideo).catch(() => {
+                        // Autoplay can fail before enough data; keep poster visible.
+                    });
+                },
+
+                stopVideoPreview(event) {
+                    const root = event.currentTarget;
+                    const video = root.querySelector('video');
+                    const poster = root.querySelector('img');
+                    if (!video) return;
+
+                    video.pause();
+                    video.currentTime = 0;
+                    video.classList.add('opacity-0');
+                    if (poster) poster.classList.remove('opacity-0');
+                },
+
                 getAllImages() {
                     return [...this.todayImages, ...this.yesterdayImages, ...this.olderImages];
                 },
@@ -699,7 +770,7 @@ handleScroll() {
                         const newImage = allImages[newIndex];
                         this.setActiveItem({
                             ...newImage,
-                            output: newImage.url
+                            output: this.mediaOutputUrl(newImage)
                         });
                     }
                 },
@@ -865,7 +936,7 @@ this.loadingMore = false;
 
                     this.setActiveItem({
                         ...image,
-                        output: image.url
+                        output: this.mediaOutputUrl(image)
                     });
                     this.modalShow = true;
                     this.enterCropMode();

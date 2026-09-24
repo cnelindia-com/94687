@@ -26,7 +26,7 @@ class SupportSetting extends Model
             ['id' => 1],
             [
                 'name'             => 'Support Team',
-                'email'            => 'support@example.com',
+                'email'            => 'lucky.agarwal@cnel.in',
                 'tutorial_title'   => __('How to Use Platform Features'),
                 'tutorial_subtitle'=> __('Complete guide to all platform features'),
             ]

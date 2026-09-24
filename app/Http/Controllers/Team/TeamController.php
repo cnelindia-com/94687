@@ -220,10 +220,18 @@ class TeamController extends Controller
 
         $request['allow_unlimited_credits'] = (bool) $request->get('allow_unlimited_credits', false);
 
+        $allowedStatuses = ['active'];
+        if ($teamMember->status === 'waiting') {
+            $allowedStatuses[] = 'waiting';
+        }
+        if (in_array($teamMember->status, ['suspended', 'cancelled'], true)) {
+            $allowedStatuses[] = 'suspended';
+        }
+
         $data = $request->validate([
             'team_role' => 'required|in:1,2',
-            'credits' => 'required|integer|min:0',
-            'status' => 'required',
+            'credits'   => 'required|integer|min:0',
+            'status'    => 'required|in:' . implode(',', $allowedStatuses),
         ]);
 
         $linkedUser = $teamMember->user;
@@ -359,17 +367,27 @@ class TeamController extends Controller
         // ✅ Team member record update karo
         // ✅ IMPORTANT: 'credits' column = ALLOCATED CREDITS (PERMANENTLY FIXED - KABHI CHANGE NAHI HOGI)
         // ✅ SIRF 'remaining_words' CHANGE HOGI JO CURRENT AVAILABLE BALANCE HAI
+        $newStatus = $request->input('status', $teamMember->status);
+
         $updateData = [
             'team_role' => $teamRole,
             'role' => $teamRole === 1 ? 'creator' : 'viewer',
             'remaining_words' => $remainingWords,  // ✅ YEH ONLY REMAINING/UNUSED AMOUNT
-            'status' => $request->input('status', $teamMember->status),
+            'status' => $newStatus,
         ];
         
         // ✅ 'credits' column KABHI TOUCH NAHI KARNA - JO PEHLE SET HUA WO PERMANENT RAHEGA
         // ✅ ALLOCATED CREDITS FIXED HAIN - OWNER CREDITS DE YA LE, CHANGE NAHI HOGA
         
         $teamMember->update($updateData);
+
+        // Keep login working after reactivation from suspended/cancelled.
+        if ($linkedUser && $newStatus === 'active') {
+            $linkedUser->update([
+                'email_confirmed'         => 1,
+                'email_confirmation_code' => null,
+            ]);
+        }
 
         if ($isDowngradeToViewer) {
             $remainingWords = 0;
@@ -480,20 +498,22 @@ class TeamController extends Controller
 
         abort_if(auth()->id() !== $team->user_id, 404);
 
-        $newStatus = $teamMember->status === 'active' ? 'suspended' : 'active';
+        // Suspend now means limited access (Support + Settings), not a login block.
+        $newStatus = $teamMember->status === 'suspended' ? 'active' : 'suspended';
         $teamMember->update(['status' => $newStatus]);
 
-        if ($newStatus === 'suspended' && $teamMember->user) {
-            $teamMember->user->update(['email_confirmed' => 0]);
-        }
-
         if ($newStatus === 'active' && $teamMember->user) {
-            $teamMember->user->update(['email_confirmed' => 1]);
+            $teamMember->user->update([
+                'email_confirmed'         => 1,
+                'email_confirmation_code' => null,
+            ]);
         }
 
         return back()->with([
             'type'    => 'success',
-            'message' => trans('Team member ' . $newStatus . ' successfully.'),
+            'message' => $newStatus === 'suspended'
+                ? trans('Team member suspended successfully. They can only access Support and Settings.')
+                : trans('Team member activated successfully.'),
         ]);
     }
 

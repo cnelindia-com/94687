@@ -1,0 +1,37 @@
+body {
+	background-image: url(@themeAssets/marketing-bot-dashboard/assets/img/bg/bg-1.png);
+	background-repeat: no-repeat;
+	background-position: top left;
+	background-size: 1500px;
+
+	&.lqd-page-generator-v2 {
+
+		.lqd-page-wrapper {
+			@apply lg:ps-0 lg:pe-0;
+		}
+	}
+
+	&.hide-navbar {
+
+		.lqd-page-wrapper {
+			@apply lg:ps-0;
+		}
+	}
+
+	&.is-auth-page {
+
+		.lqd-page-wrapper {
+			@apply ps-0;
+		}
+	}
+}
+
+.lqd-page-wrapper {
+	@apply lg:ps-[--navbar-fixed-width];
+}
+
+@media (max-width: 576px) {
+	body {
+		background-position: top center;
+	}
+}

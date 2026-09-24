@@ -55,6 +55,15 @@ class FashionModelController extends Controller
             SET u.total_credit = c.net_credit
             WHERE u.id = ?
         ", [$userId, $userId]);
+
+        $source = \App\Services\Analytics\GoogleTagManager::sourceFromAssetType('fashion_model');
+        \App\Services\Analytics\GoogleTagManager::creditsUsedById($userId, $credits, [
+            'record_id'    => $recordId,
+            'source'       => $source['source'],
+            'source_label' => $source['source_label'],
+            'action'       => $source['credits_label'],
+            'item'         => $source['item'],
+        ]);
     }
 
     /**
@@ -277,7 +286,7 @@ class FashionModelController extends Controller
             ]);
 
             // ✅ Credits abhi cut karo (model create button click par)
-            $this->deductCreditsForRecord($user->id, $fashionModel->id, $neededCredit, $resolution . ' model created');
+            $this->deductCreditsForRecord($user->id, $fashionModel->id, $neededCredit, 'Credits used for Model creation');
 
             // ✅ Job dispatch karo — agar fail ho jaye to refund ho jayega
             CheckFalAIGenerationJob::dispatch($fashionModel->id, 'image', 'fashion_model')

@@ -62,7 +62,7 @@
 
         {{-- Create Tab --}}
         <div id="tab-content-create" class="hidden">
-            <form id="create-model-form" method="POST" action="{{ route('fashion-studio.save-custom-model') }}" enctype="multipart/form-data">
+            <form id="create-model-form" method="POST" action="{{ route('dashboard.user.fashion-studio.default-models.save-custom-model') }}" enctype="multipart/form-data">
                 @csrf
                 <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div class="p-6 space-y-6">
@@ -196,7 +196,7 @@
         function deleteModel(id, btn) {
     if (!confirm('Are you sure you want to delete this model?')) return;
     const card = btn.closest('.model-card');
-    fetch(`/fashion-studio/delete-model/${id}`, {
+    fetch(`{{ url('dashboard/user/fashion-studio/default-models/delete-model') }}/${id}`, {
         method: 'DELETE',
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -265,7 +265,7 @@
                 rank: index + 1
             }));
 
-            fetch('{{ route("fashion-studio.update-rank") }}', {
+            fetch('{{ route("dashboard.user.fashion-studio.default-models.update-rank") }}', {
                 method:  'POST',
                 headers: {
                     'Content-Type': 'application/json',

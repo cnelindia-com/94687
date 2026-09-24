@@ -37,6 +37,7 @@ use App\Http\Controllers\Common\Settings\FalAISettingController as CommonFalAISe
 use App\Http\Controllers\Dashboard\AdminController;
 use App\Http\Controllers\Dashboard\BrandController;
 use App\Http\Controllers\Dashboard\DebugController;
+use App\Http\Controllers\Dashboard\GtmEventsController;
 use App\Http\Controllers\Dashboard\NotificationController;
 use App\Http\Controllers\Dashboard\SearchController;
 use App\Http\Controllers\Dashboard\SettingsController;
@@ -88,6 +89,8 @@ Route::middleware(['auth', 'updateUserActivity', 'check.viewer.role'])
             ->name('user.')
             ->group(callback: function () {
                 Route::get('', [UserController::class, 'index'])->name('index');
+
+                Route::get('gtm-events', [GtmEventsController::class, 'index'])->name('gtm.events');
 
                 Route::get('check/payment', [PaymentProcessController::class, 'checkSubscriptionStatusFromAjax'])->name('check.payment');
                 Route::get('check/update-available', [UserController::class, 'updateAvailable'])->name('check.update-available');
@@ -315,11 +318,6 @@ Route::middleware(['auth', 'updateUserActivity', 'check.viewer.role'])
                     Route::get('gemini/test', [SettingsController::class, 'geminiTest'])->name('gemini.test');  
                 });
 
-               Route::middleware(['auth', 'check.viewer.role'])->prefix('dashboard/user/fashion-studio')->group(function () {
-    Route::get('/user_settings', [\App\Extensions\FashionStudio\Controllers\UserSettingsController::class, 'index'])
-        ->name('dashboard.user.fashion-studio.user_settings');
-});
-
                 // Subscription and payment
                 Route::prefix('payment')
                     ->name('payment.')
@@ -474,6 +472,7 @@ Route::middleware(['auth', 'updateUserActivity', 'check.viewer.role'])
                         ->name('sendPasswordReset');
                     Route::get('/delete/{id}', [AdminController::class, 'usersDelete'])->name('delete');
                     Route::post('save', [AdminController::class, 'usersSave'])->name('update');
+                    Route::post('credits/{user}', [AdminController::class, 'usersAdjustCredits'])->name('credits.update');
 
                     Route::get('permissions', [AdminController::class, 'userPermissions'])->name('permissions');
                     Route::post('permission-save', [AdminController::class, 'userPermissionSave'])

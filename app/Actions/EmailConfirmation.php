@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Jobs\SendConfirmationEmail;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 final class EmailConfirmation
 {
@@ -20,6 +21,7 @@ final class EmailConfirmation
     public function send(): void
     {
         if ($this->shouldSend()) {
+            $this->ensureConfirmationCode();
             $this->dispatch();
         }
     }
@@ -44,6 +46,19 @@ final class EmailConfirmation
         $this->unlock();
     }
 
+    private function ensureConfirmationCode(): void
+    {
+        if (! empty($this->user->email_confirmation_code)) {
+            return;
+        }
+
+        $this->user->update([
+            'email_confirmation_code' => Str::random(67),
+        ]);
+
+        $this->user->refresh();
+    }
+
     private function unlock(): void
     {
         Cache::forget($this->lockKey());
@@ -51,7 +66,7 @@ final class EmailConfirmation
 
     private function dispatch(): void
     {
-        SendConfirmationEmail::dispatch($this->user);
+        SendConfirmationEmail::dispatch($this->user->fresh());
     }
 
     public function shouldSend(): bool

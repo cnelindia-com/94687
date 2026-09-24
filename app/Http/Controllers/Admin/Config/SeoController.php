@@ -41,6 +41,10 @@ class SeoController extends Controller
             'meta_description'      => $request->get('meta_description'),
         ]);
 
+        setting([
+            'google_container_id' => trim((string) $request->get('google_container_id', '')),
+        ])->save();
+
         $metaTitleLocal = $request->get('metaTitleLocal');
         $metaDescLocal = $request->get('metaDescLocal');
 

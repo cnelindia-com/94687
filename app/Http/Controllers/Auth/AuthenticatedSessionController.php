@@ -60,19 +60,6 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        // Check if user is a suspended team member
-        if ($user) {
-            $suspendedMember = \App\Models\Team\TeamMember::where('user_id', $user->id)
-                ->where('status', 'suspended')
-                ->exists();
-            if ($suspendedMember) {
-                return response()->json([
-                    'errors' => [__('Your account has been suspended. Please contact your team administrator.')],
-                    'type'   => 'error',
-                ], 401);
-            }
-        }
-
         if ($settings->login_without_confirmation == 0) {
             if (! $user) {
                 return response()->json(['errors' => [trans('auth.failed')]], 401);

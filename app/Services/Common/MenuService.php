@@ -109,6 +109,9 @@ class MenuService
             return $this->merge($items);
         });
 
+        $data = $this->nestApiIntegrationChildren($data);
+        $data = $this->applySidebarLabelOverrides($data);
+
         if (setting('dash_theme') === 'oupi') {
             $menuHelper = app(MenuHelper::class);
 
@@ -186,6 +189,18 @@ class MenuService
 
                 $data[$item['key']] = array_merge($staticData[$item['key']], $item->toArray());
 
+                $sidebarLabels = [
+                    'api_integration' => 'All Models API',
+                    'user_management' => 'User Settings',
+                    'frontend'        => 'Frontend Settings',
+                    'finance'         => 'Pricing Settings',
+                    'templates'       => 'Templates Settings',
+                ];
+
+                if (isset($sidebarLabels[$item['key']])) {
+                    $data[$item['key']]['label'] = $sidebarLabels[$item['key']];
+                }
+
                 if ($item->parent_id) {
                     $data[$item['key']]['show_condition'] = (isset($data[$item['key']]['show_condition']) && $data[$item['key']]['show_condition']) && $item->is_active;
                 }
@@ -206,6 +221,70 @@ class MenuService
                     $children = $item->getAttribute('children');
 
                     $data[$item['key']]['children'] = $this->merge($children);
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Group provider API items under the All Models API parent, even if the
+     * database still has them stored as top-level menu rows.
+     */
+    protected function nestApiIntegrationChildren(array $data): array
+    {
+        if (! isset($data['api_integration'])) {
+            return $data;
+        }
+
+        foreach ($data as $key => $value) {
+            if ($key === 'api_integration') {
+                continue;
+            }
+
+            if (($value['parent_key'] ?? null) !== 'api_integration') {
+                continue;
+            }
+
+            $data['api_integration']['children'][$key] = $value;
+            unset($data[$key]);
+        }
+
+        $data['api_integration']['label'] = 'All Models API';
+        $data['api_integration']['children_count'] = count($data['api_integration']['children'] ?? []);
+
+        return $data;
+    }
+
+    protected function applySidebarLabelOverrides(array $data): array
+    {
+        $labels = [
+            'api_integration'               => 'All Models API',
+            'user_management'               => 'User Settings',
+            'frontend'                      => 'Frontend Settings',
+            'finance'                       => 'Pricing Settings',
+            'templates'                     => 'Templates Settings',
+            'ext_fashion_studio_edit_image' => 'Fashion PlayGround',
+        ];
+
+        foreach ($labels as $key => $label) {
+            if (isset($data[$key])) {
+                $data[$key]['label'] = $label;
+            }
+        }
+
+        // Override nested children labels (e.g. Fashion PlayGround under AI Fashion Studio).
+        foreach ($data as $parentKey => $parent) {
+            $children = data_get($parent, 'children');
+            if (! is_array($children)) {
+                continue;
+            }
+
+            foreach ($children as $childKey => $child) {
+                $childMenuKey = data_get($child, 'key', $childKey);
+                if (is_string($childMenuKey) && isset($labels[$childMenuKey])) {
+                    $data[$parentKey]['children'][$childKey]['label'] = $labels[$childMenuKey];
                 }
             }
         }
@@ -704,7 +783,7 @@ class MenuService
                 'parent_key'       => 'ext_fashion_studio_dropdown',
                 'key'              => 'ext_fashion_studio_edit_image',
                 'route'            => 'dashboard.user.fashion-studio.edit_image.index',
-                'label'            => 'Edit Image',
+                'label'            => 'Fashion PlayGround',
                 'data-name'        => null,
                 'icon'             => 'tabler-pencil',
                 'svg'              => null,
@@ -2112,7 +2191,7 @@ class MenuService
                 'parent_key'       => null,
                 'key'              => 'user_management',
                 'route'            => 'dashboard.admin.users.index',
-                'label'            => 'User Management',
+                'label'            => 'User Settings',
                 'data-name'        => Introduction::ADMIN_USER_MANAGEMENT,
                 'icon'             => 'tabler-users',
                 'svg'              => null,
@@ -2318,7 +2397,7 @@ class MenuService
                 'parent_key'       => null,
                 'key'              => 'templates',
                 'route'            => 'dashboard.admin.openai.list',
-                'label'            => 'Templates',
+                'label'            => 'Templates Settings',
                 'data-name'        => Introduction::ADMIN_TEMPLATES,
                 'icon'             => 'tabler-list-details',
                 'svg'              => null,
@@ -2573,7 +2652,7 @@ class MenuService
                 'parent_key'       => null,
                 'key'              => 'frontend',
                 'route'            => 'dashboard.admin.frontend.settings',
-                'label'            => 'Frontend',
+                'label'            => 'Frontend Settings',
                 'data-name'        => Introduction::ADMIN_FRONTEND,
                 'icon'             => 'tabler-device-laptop',
                 'svg'              => null,
@@ -2879,7 +2958,7 @@ class MenuService
                 'parent_key'       => null,
                 'key'              => 'finance',
                 'route'            => 'dashboard.admin.finance.plans.index',
-                'label'            => 'Finance',
+                'label'            => 'Pricing Settings',
                 'data-name'        => Introduction::ADMIN_FINANCE,
                 'icon'             => 'tabler-wallet',
                 'svg'              => null,
@@ -3197,7 +3276,7 @@ class MenuService
                 'parent_key'       => null,
                 'key'              => 'api_integration',
                 'route'            => 'default',
-                'label'            => 'API Integration',
+                'label'            => 'All Models API',
                 'data-name'        => Introduction::ADMIN_API_INTEGRATION,
                 'icon'             => 'tabler-api',
                 'svg'              => null,

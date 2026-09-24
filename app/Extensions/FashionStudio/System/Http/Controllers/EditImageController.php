@@ -40,12 +40,12 @@ class EditImageController extends BaseFashionStudioController
 
     protected function getGenerationTitle(): string
     {
-        return __('Change Model Generation');
+        return __('Fashion PlayGround Generation');
     }
 
     protected function getSlugSuffix(): string
     {
-        return 'change-model';
+        return 'edit_image';
     }
 
     protected function getPrompt(): string
@@ -60,7 +60,7 @@ class EditImageController extends BaseFashionStudioController
 
     protected function getResponseKey(): string
     {
-        return 'change_model';
+        return 'edit_image';
     }
 
     protected function getDemoLimitFeature(): string

@@ -9,6 +9,9 @@ use App\Domains\Marketplace\Contracts\UninstallExtensionServiceProviderInterface
 use App\Extensions\FashionStudio\System\Http\Controllers\BackgroundController;
 use App\Extensions\FashionStudio\System\Http\Controllers\ChangeModelController;
 use App\Extensions\FashionStudio\System\Http\Controllers\CreateVideoController;
+use App\Extensions\FashionStudio\System\Http\Controllers\DefaultBackgroundController;
+use App\Extensions\FashionStudio\System\Http\Controllers\DefaultModelController;
+use App\Extensions\FashionStudio\System\Http\Controllers\DefaultPoseController;
 use App\Extensions\FashionStudio\System\Http\Controllers\EditImageController;
 use App\Extensions\FashionStudio\System\Http\Controllers\FashionModelController;
 use App\Extensions\FashionStudio\System\Http\Controllers\FashionStudioController;
@@ -221,6 +224,39 @@ class FashionStudioServiceProvider extends ServiceProvider implements ExtensionR
                 ], function (Router $router) {
                     $router->get('/', 'index')->name('index')->middleware('check.viewer.role');
                     $router->post('/', 'update')->name('update')->middleware('check.viewer.role');
+                });
+
+                $router->group([
+                    'prefix'     => 'default-models',
+                    'as'         => 'default-models.',
+                    'controller' => DefaultModelController::class,
+                ], function (Router $router) {
+                    $router->get('/', 'index')->name('index');
+                    $router->post('/update-rank', 'updateRank')->name('update-rank');
+                    $router->post('/save-custom-model', 'saveCustomModel')->name('save-custom-model');
+                    $router->delete('/delete-model/{id}', 'deleteStaticModel')->name('delete-model');
+                });
+
+                $router->group([
+                    'prefix'     => 'default-poses',
+                    'as'         => 'default-poses.',
+                    'controller' => DefaultPoseController::class,
+                ], function (Router $router) {
+                    $router->get('/', 'index')->name('index');
+                    $router->post('/update-rank', 'updateRank')->name('update-rank');
+                    $router->post('/save-custom-pose', 'saveCustomPose')->name('save-custom-pose');
+                    $router->delete('/delete-pose/{id}', 'deleteStaticPose')->name('delete-pose');
+                });
+
+                $router->group([
+                    'prefix'     => 'default-backgrounds',
+                    'as'         => 'default-backgrounds.',
+                    'controller' => DefaultBackgroundController::class,
+                ], function (Router $router) {
+                    $router->get('/', 'index')->name('index');
+                    $router->post('/update-rank', 'updateRank')->name('update-rank');
+                    $router->post('/save-custom-background', 'saveCustomBackground')->name('save-custom-background');
+                    $router->delete('/delete-background/{id}', 'deleteStaticBackground')->name('delete-background');
                 });
             });
 

@@ -115,6 +115,7 @@ class AuthenticationController extends Controller
             ]);
             $user->updateCredits(setting('freeCreditsUponRegistration', User::getFreshCredits()));
             app(TrialPlanService::class)->assignTrialIfEligible($user);
+            \App\Services\Analytics\GoogleTagManager::signupCompleted($user);
         }
         Auth::login($user);
         $ip = $request->ip();
@@ -373,6 +374,8 @@ class AuthenticationController extends Controller
         } catch (Exception $e) {
             // Handle exception silently (you can log it if necessary)
         }
+
+        \App\Services\Analytics\GoogleTagManager::signupCompleted($user);
 
         // If login without email confirmation is allowed
         if ($settings->login_without_confirmation === 1) {

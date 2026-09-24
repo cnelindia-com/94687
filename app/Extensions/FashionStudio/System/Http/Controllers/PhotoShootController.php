@@ -216,19 +216,42 @@ class PhotoShootController extends BaseFashionStudioController
 
             $imageUrl = $image->output;
             $imageWithThumbnail = $image->toArray();
-            
-            // For S3/DigitalOcean Spaces images, create thumbnail on S3 and use proxy for viewing
-            if (!$isProcessing && $imageUrl && (str_contains($imageUrl, 'digitaloceanspaces.com') || str_contains($imageUrl, '.s3.') || str_contains($imageUrl, env('AWS_URL', '')))) {
-                // Use proxy URL for main image to avoid CORS
-                $imageWithThumbnail['url'] = route('dashboard.user.fashion-studio.proxy.image', ['url' => $imageUrl]);
-                // Create and use thumbnail from S3
-                $imageWithThumbnail['thumbnail'] = $this->getLocalThumbnail($imageUrl);
+
+            $awsUrl = (string) env('AWS_URL', '');
+            $isRemote = $imageUrl && (
+                str_contains($imageUrl, 'digitaloceanspaces.com')
+                || str_contains($imageUrl, '.s3.')
+                || ($awsUrl !== '' && str_contains($imageUrl, $awsUrl))
+            );
+
+            // Remote media strategy:
+            // - Videos: serve direct CDN URL in gallery (proxying full MP4s is slow and caused late load / 500s)
+            // - Images: keep proxy URL for same-origin crop/canvas; generate lightweight thumbs once on S3
+            if (! $isProcessing && $isRemote) {
+                $proxyUrl = route('dashboard.user.fashion-studio.proxy.image', ['url' => $imageUrl]);
+                $imageWithThumbnail['proxy_url'] = $proxyUrl;
+
+                if ($isVideo) {
+                    $imageWithThumbnail['url'] = $imageUrl;
+                    // Instant poster from source image (do not wait for MP4 first-frame)
+                    $imageWithThumbnail['thumbnail'] = $this->resolveVideoPoster($image);
+                } else {
+                    $imageWithThumbnail['url'] = $proxyUrl;
+                    $imageWithThumbnail['thumbnail'] = $this->getLocalThumbnail($imageUrl);
+                }
             } else {
                 $imageWithThumbnail['url'] = $isProcessing ? '/themes/default/assets/img/loading.svg' : $imageUrl;
-                $imageWithThumbnail['thumbnail'] = $isProcessing ? '/themes/default/assets/img/loading.svg' : ThumbImage($imageUrl);
+                if ($isProcessing) {
+                    $imageWithThumbnail['thumbnail'] = '/themes/default/assets/img/loading.svg';
+                } elseif ($isVideo) {
+                    $imageWithThumbnail['thumbnail'] = $this->resolveVideoPoster($image);
+                } else {
+                    $imageWithThumbnail['thumbnail'] = ThumbImage($imageUrl);
+                }
+                $imageWithThumbnail['proxy_url'] = null;
             }
-            
-            // Also add a direct URL for operations that need the original (like delete)
+
+            // Direct URL for download / delete / modal playback fallbacks
             $imageWithThumbnail['original_url'] = $isProcessing ? '' : $image->output;
 
             $createdAt = $image->created_at;
@@ -382,7 +405,7 @@ class PhotoShootController extends BaseFashionStudioController
     $user = Auth::user();
     
     $teamMember = \App\Models\Team\TeamMember::where('user_id', $user->id)
-        ->where('status', 'suspended')
+        ->whereIn('status', ['suspended', 'cancelled'])
         ->first();
     
     if ($teamMember) {
@@ -985,6 +1008,46 @@ return response()->json($data);
     }
 
     /**
+     * Prefer the source still image used to generate the video as an instant gallery poster.
+     * Avoids waiting for the browser to download MP4 metadata just to show a first frame.
+     */
+    private function resolveVideoPoster(object $image): ?string
+    {
+        $payload = $image->payload ?? null;
+
+        if (is_string($payload) && $payload !== '') {
+            try {
+                $payload = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\Throwable) {
+                $payload = [];
+            }
+        }
+
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $candidates = [
+            $payload['image_path'] ?? null,
+            $payload['image_url'] ?? null,
+            $payload['source_image'] ?? null,
+            $payload['input_image'] ?? null,
+        ];
+
+        if (! empty($payload['product_urls']) && is_array($payload['product_urls'])) {
+            $candidates[] = $payload['product_urls'][0] ?? null;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && $candidate !== '' && ! str_ends_with(strtolower(parse_url($candidate, PHP_URL_PATH) ?? $candidate), '.mp4')) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Create thumbnail for S3 image directly on S3 and return thumbnail URL
      */
     private function getLocalThumbnail(string $s3Url): string
@@ -994,45 +1057,55 @@ return response()->json($data);
             $parsedUrl = parse_url($s3Url);
             $path = $parsedUrl['path'] ?? '';
             $path = ltrim($path, '/');
-            
+
+            // Never download full videos just to build a GD thumbnail (GD cannot read MP4 anyway).
+            // Doing so made the gallery API extremely slow on every page reload.
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if (in_array($extension, ['mp4', 'mov', 'avi', 'webm', 'mkv'], true)) {
+                return $s3Url;
+            }
+
             // Create thumbnail path on S3 (in a "thumbs" folder)
             $thumbFilename = 'thumbs/' . md5($path) . '_' . pathinfo($path, PATHINFO_FILENAME) . '.webp';
-            
+
             // Check if thumbnail already exists on S3
             if (Storage::disk('s3')->exists($thumbFilename)) {
                 return Storage::disk('s3')->url($thumbFilename);
             }
-            
+
             // Download original image from S3
-            if (!Storage::disk('s3')->exists($path)) {
-                \Log::warning('S3 file not found for thumbnail', ['path' => $path, 'url' => $s3Url]);
+            if (! Storage::disk('s3')->exists($path)) {
+                Log::warning('S3 file not found for thumbnail', ['path' => $path, 'url' => $s3Url]);
+
                 return $s3Url; // Fallback to original URL
             }
-            
+
             $imageContent = Storage::disk('s3')->get($path);
             $tempFile = tempnam(sys_get_temp_dir(), 'thumb_') . '.' . pathinfo($path, PATHINFO_EXTENSION);
             file_put_contents($tempFile, $imageContent);
-            
+
             // Create thumbnail using GD
             $thumbData = $this->createThumbnail($tempFile, 800, 800, 80);
-            
+
             // Delete temp file
             @unlink($tempFile);
-            
+
             if ($thumbData) {
                 // Upload thumbnail to S3
                 Storage::disk('s3')->put($thumbFilename, $thumbData, 'public');
-                \Log::info('Thumbnail created on S3', ['original' => $path, 'thumbnail' => $thumbFilename]);
+                Log::info('Thumbnail created on S3', ['original' => $path, 'thumbnail' => $thumbFilename]);
+
                 return Storage::disk('s3')->url($thumbFilename);
             }
-            
+
             return $s3Url; // Fallback to original URL on error
-            
+
         } catch (\Exception $e) {
-            \Log::error('Failed to create thumbnail on S3: ' . $e->getMessage(), [
-                'url' => $s3Url,
-                'error' => $e->getMessage()
+            Log::error('Failed to create thumbnail on S3: ' . $e->getMessage(), [
+                'url'   => $s3Url,
+                'error' => $e->getMessage(),
             ]);
+
             return $s3Url; // Fallback to original URL on error
         }
     }
@@ -1134,80 +1207,221 @@ return response()->json($data);
         }
     }
 
+    /**
+     * Proxy S3/Spaces (or local) media without loading the entire file into PHP memory.
+     * Streams in chunks and supports HTTP Range requests so large videos do not OOM / 500.
+     */
     public function proxyImage(Request $request)
-{
-    $url = $request->query('url');
+    {
+        $url = $request->query('url');
 
-    if (empty($url)) {
-        abort(404, __('File not found.'));
-    }
-
-    \Log::info('Proxy image called', ['url' => $url]);
-
-    try {
-        $parsedUrl = parse_url($url);
-        $path = $parsedUrl['path'] ?? '';
-        $path = ltrim($path, '/');
-
-        $content = null;
-        $mimeType = null;
-
-        // Check if it's an S3/DigitalOcean Spaces URL
-        if (str_contains($url, 'digitaloceanspaces.com') || str_contains($url, '.s3.') || str_contains($url, env('AWS_URL', ''))) {
-            try {
-                if (\Illuminate\Support\Facades\Storage::disk('s3')->exists($path)) {
-                    $content = \Illuminate\Support\Facades\Storage::disk('s3')->get($path);
-                    $mimeType = \Illuminate\Support\Facades\Storage::disk('s3')->mimeType($path);
-                    \Log::info('Proxy image: Retrieved from S3', ['path' => $path, 'mime' => $mimeType, 'size' => strlen($content)]);
-                } else {
-                    \Log::warning('Proxy image: File not found on S3', ['path' => $path, 'url' => $url]);
-                    abort(404, __('File not found.'));
-                }
-            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-                // Re-throw our own abort(404) so it isn't swallowed by the catch below
-                throw $e;
-            } catch (\Throwable $s3Exception) {
-                // Any S3/network/permission error should surface as 404, not 500
-                \Log::error('Proxy image: S3 error while fetching file', [
-                    'path'  => $path,
-                    'url'   => $url,
-                    'error' => $s3Exception->getMessage(),
-                ]);
-                abort(404, __('File not found.'));
-            }
-        } else {
-            // Local file
-            $localPath = public_path($path);
-            if (!file_exists($localPath)) {
-                abort(404, __('File not found.'));
-            }
-            $content = file_get_contents($localPath);
-            $mimeType = mime_content_type($localPath);
-        }
-
-        if ($content === null || empty($content)) {
+        if (empty($url)) {
             abort(404, __('File not found.'));
         }
 
-        return response($content, 200, [
-            'Content-Type' => $mimeType ?: 'application/octet-stream',
-            'Content-Length' => strlen($content),
-            'Cache-Control' => 'public, max-age=86400',
+        try {
+            $parsedUrl = parse_url($url);
+            $path = ltrim($parsedUrl['path'] ?? '', '/');
+
+            if ($path === '' || str_contains($path, '..')) {
+                abort(404, __('File not found.'));
+            }
+
+            $awsUrl = (string) env('AWS_URL', '');
+            $isRemote = str_contains($url, 'digitaloceanspaces.com')
+                || str_contains($url, '.s3.')
+                || ($awsUrl !== '' && str_contains($url, $awsUrl));
+
+            if ($isRemote) {
+                return $this->streamRemoteProxyFile($request, $path, $url);
+            }
+
+            return $this->streamLocalProxyFile($path);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Proxy image error: ' . $e->getMessage(), [
+                'url'   => $url ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            abort(404, __('File not found.'));
+        }
+    }
+
+    /**
+     * Stream a file from S3/Spaces in chunks (never Storage::get() whole object into RAM).
+     * Uses S3 native byte-range when seeking so video players do not pull the full object.
+     */
+    private function streamRemoteProxyFile(Request $request, string $path, string $url)
+    {
+        try {
+            $disk = Storage::disk('s3');
+
+            if (! $disk->exists($path)) {
+                Log::warning('Proxy image: File not found on S3', ['path' => $path, 'url' => $url]);
+                abort(404, __('File not found.'));
+            }
+
+            $mimeType = $disk->mimeType($path) ?: 'application/octet-stream';
+            $size = (int) $disk->size($path);
+
+            return $this->streamProxyResponse($request, $mimeType, $size, function (int $start, int $length) use ($disk, $path, $size) {
+                $stream = $this->openRemoteProxyStream($disk, $path, $start, $length, $size);
+                if ($stream === false || ! is_resource($stream)) {
+                    return;
+                }
+
+                $remaining = $length;
+                while ($remaining > 0 && ! feof($stream)) {
+                    $chunk = fread($stream, min(8192, $remaining));
+                    if ($chunk === false || $chunk === '') {
+                        break;
+                    }
+                    echo $chunk;
+                    $remaining -= strlen($chunk);
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+                    flush();
+                }
+
+                fclose($stream);
+            });
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
+        } catch (\Throwable $s3Exception) {
+            Log::error('Proxy image: S3 error while fetching file', [
+                'path'  => $path,
+                'url'   => $url,
+                'error' => $s3Exception->getMessage(),
+            ]);
+            abort(404, __('File not found.'));
+        }
+    }
+
+    /**
+     * Open a readable stream for the requested byte window.
+     *
+     * @param  \Illuminate\Contracts\Filesystem\Filesystem|\Illuminate\Filesystem\FilesystemAdapter  $disk
+     * @return resource|false
+     */
+    private function openRemoteProxyStream($disk, string $path, int $start, int $length, int $size)
+    {
+        $end = $start + $length - 1;
+
+        // Prefer S3 GetObject Range so we never download bytes before $start into PHP.
+        try {
+            if (method_exists($disk, 'getClient') && $length < $size) {
+                $bucket = config('filesystems.disks.s3.bucket');
+                $result = $disk->getClient()->getObject([
+                    'Bucket' => $bucket,
+                    'Key'    => $path,
+                    'Range'  => "bytes={$start}-{$end}",
+                ]);
+                $body = $result['Body'] ?? null;
+                if (is_object($body) && method_exists($body, 'detach')) {
+                    $detached = $body->detach();
+                    if (is_resource($detached)) {
+                        return $detached;
+                    }
+                }
+                if (is_resource($body)) {
+                    return $body;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Proxy image: S3 ranged get failed, falling back to readStream', [
+                'path'  => $path,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $stream = $disk->readStream($path);
+        if ($stream === false || ! is_resource($stream)) {
+            return false;
+        }
+
+        if ($start > 0) {
+            fseek($stream, $start);
+        }
+
+        return $stream;
+    }
+
+    /**
+     * Stream a local public file without file_get_contents() into memory.
+     */
+    private function streamLocalProxyFile(string $path)
+    {
+        $localPath = public_path($path);
+        $realBase = realpath(public_path()) ?: public_path();
+        $realFile = realpath($localPath);
+
+        if ($realFile === false || ! is_file($realFile) || ! str_starts_with($realFile, $realBase)) {
+            abort(404, __('File not found.'));
+        }
+
+        $mimeType = mime_content_type($realFile) ?: 'application/octet-stream';
+
+        return response()->file($realFile, [
+            'Content-Type'                => $mimeType,
+            'Cache-Control'               => 'public, max-age=86400',
             'Access-Control-Allow-Origin' => '*',
         ]);
-
-    } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-        // Let 404 (and other intentional HTTP aborts) pass through unchanged
-        throw $e;
-    } catch (\Throwable $e) {
-        \Log::error('Proxy image error: ' . $e->getMessage(), [
-            'url' => $url ?? null,
-            'error' => $e->getMessage(),
-        ]);
-        // ✅ Any unexpected error also becomes a 404, never a 500
-        abort(404, __('File not found.'));
     }
-}
+
+    /**
+     * Build a streamed response with optional HTTP Range (206) support for video seeking.
+     *
+     * @param  callable(int $start, int $length): void  $output
+     */
+    private function streamProxyResponse(Request $request, string $mimeType, int $size, callable $output)
+    {
+        if ($size <= 0) {
+            return response('', 200, [
+                'Content-Type'                => $mimeType,
+                'Content-Length'              => 0,
+                'Cache-Control'               => 'public, max-age=86400',
+                'Access-Control-Allow-Origin' => '*',
+            ]);
+        }
+
+        $start = 0;
+        $end = $size - 1;
+        $status = 200;
+
+        $rangeHeader = $request->header('Range');
+        if ($rangeHeader && preg_match('/bytes=(\d+)-(\d*)/', $rangeHeader, $matches)) {
+            $start = (int) $matches[1];
+            if ($matches[2] !== '') {
+                $end = min((int) $matches[2], $end);
+            }
+            if ($start > $end || $start >= $size) {
+                return response('', 416, [
+                    'Content-Range' => "bytes */{$size}",
+                ]);
+            }
+            $status = 206;
+        }
+
+        $length = $end - $start + 1;
+
+        $headers = [
+            'Content-Type'                => $mimeType,
+            'Content-Length'              => $length,
+            'Accept-Ranges'               => 'bytes',
+            'Cache-Control'               => 'public, max-age=86400',
+            'Access-Control-Allow-Origin' => '*',
+        ];
+
+        if ($status === 206) {
+            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+        }
+
+        return response()->stream(function () use ($output, $start, $length) {
+            $output($start, $length);
+        }, $status, $headers);
+    }
 
     public function removeImage(Request $request): JsonResponse
 {

@@ -16,19 +16,12 @@ use Illuminate\Support\Facades\DB;
 
 class DefaultPoseController extends Controller
 {
-   private function checkAccess(): bool
-{
-    $user = Auth::user();
-    
-    if (!$user) {
-        return false;
+    private function checkAccess(): bool
+    {
+        $user = Auth::user();
+
+        return $user?->isSuperAdmin() ?? false;
     }
-    
-    
-    $isSuperAdmin = ($user->type->value === 'super_admin');
-    
-    return $isSuperAdmin;
-}
 
     public function index(): View
     {

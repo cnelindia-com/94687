@@ -240,11 +240,13 @@ if (!$exists) {
 
     Log::info('Product credit insert: ' . $product->id);
 
+    $gtmSource = \App\Services\Analytics\GoogleTagManager::sourceFromAssetType('product');
+
     DB::table('credits')->insert([
         'user_id'    => $user->id,
         'credits'    => $neededcredit,
         'types'      => 2,
-        'action'     => "Product created",
+        'action'     => $gtmSource['credits_label'],
         'created_at' => now(),
         'recordid'   => $product->id
     ]);
@@ -265,6 +267,14 @@ if (!$exists) {
         SET u.total_credit = c.net_credit
         WHERE u.id = ?
     ", [$userId, $userId]);
+
+    \App\Services\Analytics\GoogleTagManager::creditsUsedIfExhausted($user, (int) $neededcredit, [
+        'record_id'    => $product->id,
+        'source'       => $gtmSource['source'],
+        'source_label' => $gtmSource['source_label'],
+        'action'       => $gtmSource['credits_label'],
+        'item'         => $gtmSource['item'],
+    ]);
 
     $resulttests = DB::select("
         SELECT 

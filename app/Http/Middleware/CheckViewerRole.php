@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -13,8 +14,8 @@ class CheckViewerRole
     public function handle(Request $request, Closure $next): Response
     {
         $userId = auth()->id();
-        
-        if (!$userId) {
+
+        if (! $userId) {
             return $next($request);
         }
 
@@ -31,9 +32,14 @@ class CheckViewerRole
         $role = strtolower($teamMember->role ?? '');
         $status = strtolower($teamMember->status ?? '');
         $isViewer = $teamMember && ((int) $teamMember->team_role === 2 || $role === 'viewer');
-        $isCancelled = $teamMember && $status === 'cancelled';
+        // Keep cancelled for legacy rows; treat like suspended.
+        $isSuspended = $teamMember && in_array($status, ['suspended', 'cancelled'], true);
+
+        View::share('isSuspendedTeamMember', $isSuspended);
 
         $currentRouteName = $request->route()?->getName() ?? '';
+        $currentPath = trim($request->path(), '/');
+
         $allowedViewerRoutes = [
             'dashboard.user.fashion-studio.user_settings.index',
             'dashboard.user.fashion-studio.user_settings.update',
@@ -42,26 +48,47 @@ class CheckViewerRole
             'dashboard.user.fashion-studio.photo_shoots.images.load',
         ];
 
-        $allowedCancelledRoutes = [
+        // Suspended users: Support + Fashion Studio Settings + Logout only.
+        $allowedSuspendedRoutes = [
+            'logout',
             'dashboard.support.*',
-            'dashboard.user.settings.*',
             'dashboard.user.fashion-studio.user_settings.*',
+            'dashboard.user.settings.*',
         ];
 
-        if ($isCancelled) {
-            $isAllowed = collect($allowedCancelledRoutes)->contains(
+        if ($isSuspended) {
+            if (in_array($currentRouteName, [
+                'dashboard.index',
+                'dashboard.user.fashion-studio.index',
+            ], true)) {
+                return redirect()->route('dashboard.support.list');
+            }
+
+            $isAllowed = collect($allowedSuspendedRoutes)->contains(
                 fn (string $pattern) => Str::is($pattern, $currentRouteName)
             );
 
-            if (Str::startsWith($currentRouteName, 'dashboard.support.') || Str::startsWith($currentRouteName, 'dashboard.user.settings.')) {
+            if (
+                $currentRouteName === 'logout'
+                || Str::startsWith($currentRouteName, 'dashboard.support.')
+                || Str::startsWith($currentRouteName, 'dashboard.user.fashion-studio.user_settings.')
+                || Str::startsWith($currentRouteName, 'dashboard.user.settings.')
+                || Str::startsWith($currentPath, 'dashboard/user/fashion-studio/user_settings')
+                || Str::startsWith($currentPath, 'dashboard/user/settings')
+            ) {
                 $isAllowed = true;
             }
 
+            // Return a terminal response so the blocked controller cannot render.
             if (! $isAllowed) {
-                return redirect()->route('dashboard.support.list')->with([
-                    'type'    => 'error',
-                    'message' => __('Your team access is cancelled. You can only access Support and Settings.'),
-                ]);
+                return response(
+                    'Forbidden: your account is suspended and this page is not available.',
+                    403,
+                    [
+                        'Cache-Control' => 'no-store, no-cache, must-revalidate',
+                        'Pragma'        => 'no-cache',
+                    ]
+                );
             }
         } elseif ($isViewer && ! in_array($currentRouteName, $allowedViewerRoutes, true)) {
             return redirect()->route('dashboard.user.fashion-studio.photo_shoots.my')->with([

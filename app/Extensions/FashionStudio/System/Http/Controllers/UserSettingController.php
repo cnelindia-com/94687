@@ -22,10 +22,11 @@ class UserSettingController extends Controller
         $resolutions = $settingsOwnerUser ? FashionStudioUserSetting::getAvailableResolutionsForUser($settingsOwnerUser) : FashionStudioUserSetting::RESOLUTIONS;
 
         return view('fashion-studio::user-settings.index', [
-            'settings'    => $settings,
-            'resolutions' => $resolutions,
-            'ratios'      => FashionStudioUserSetting::RATIOS,
-            'maxImages'   => FashionStudioUserSetting::MAX_NUM_IMAGES,
+            'settings'     => $settings,
+            'resolutions'  => $resolutions,
+            'ratios'       => FashionStudioUserSetting::RATIOS,
+            'maxImages'    => FashionStudioUserSetting::MAX_NUM_IMAGES,
+            'isSuperadmin' => $user?->isSuperAdmin() ?? false,
         ]);
     }
 

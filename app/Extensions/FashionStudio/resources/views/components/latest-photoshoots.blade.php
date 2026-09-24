@@ -1,5 +1,12 @@
 @php
     $videoProExtensionInstalled = \App\Helpers\Classes\MarketplaceHelper::isRegistered('ai-video-pro');
+    $user = auth()->user();
+    $plan = $user?->relationPlan ?? $user?->teamMember?->team?->user?->relationPlan;
+    $canCreateVideo = $user?->isSuperAdmin()
+        || (
+            (bool) $plan?->create_video
+            && $user?->teamMember?->team_role !== 'viewer'
+        );
 @endphp
 
 @push('css')
@@ -17,7 +24,7 @@
 <div
     class="bg-background py-12"
     x-cloak
-    x-data="myPhotoShootsComponent"
+    x-data="myPhotoShootsComponent()"
     @keyup.escape.window="isCropMode ? exitCropMode() : (modalShow = false)"
     @keyup.arrow-left.window="modalShow && !isCropMode && prevItem()"
     @keyup.arrow-right.window="modalShow && !isCropMode && nextItem()"
@@ -179,12 +186,12 @@
                                                 </a>
                                             </li>
                                         </template>
-                                        @if ($videoProExtensionInstalled)
+                                        @if ($canCreateVideo)
                                             <template x-if="!image.is_video">
                                                 <li>
                                                     <a
                                                         class="text-heading-foreground/2 flex px-5 py-2 transition-colors hover:bg-heading-foreground/[3%]"
-                                                        @click="makeAction(image.id, 'video')"
+                                                        @click.prevent="makeAction(image.id, 'video'); toggle('collapse')"
                                                         href="javascript:void(0);"
                                                     >
                                                         <x-tabler-video class="me-2 size-5" />
@@ -346,7 +353,7 @@
                                             {{ __('Crop') }}
                                         </x-button>
                                     </template>
-                                    @if ($videoProExtensionInstalled)
+                                    @if ($canCreateVideo)
                                         <template x-if="!activeItem?.is_video">
                                             <x-button
                                                 class="text-xs font-medium"
@@ -637,11 +644,27 @@
                 this.loading = true;
 
                 try {
-                    const url = new URL(ROUTES.loadImages);
+                    const url = new URL(ROUTES.loadImages, window.location.origin);
                     url.searchParams.set('page', '1');
 
-                    const response = await fetch(url);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                    const response = await fetch(url, {
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    clearTimeout(timeoutId);
+
                     if (!response.ok) throw new Error('Failed to fetch images');
+
+                    const contentType = response.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) {
+                        throw new Error('Invalid images response');
+                    }
 
                     const data = await response.json();
                     const images = (data.images || data).map(img => ({
@@ -652,7 +675,10 @@
                     this.images = images;
                 } catch (error) {
                     console.error('Failed to load images:', error);
-                    this.showNotification(MESSAGES.loadError, 'error');
+                    this.images = [];
+                    if (typeof this.showNotification === 'function') {
+                        this.showNotification(MESSAGES.loadError, 'error');
+                    }
                 } finally {
                     this.loading = false;
                 }

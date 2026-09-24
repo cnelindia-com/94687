@@ -718,8 +718,43 @@ class InstallationHelper
                                     'parent_id' => $apiIntegration?->id,
                                 ]);
 
+                                if ($apiIntegration) {
+                                    $apiIntegration->update([
+                                        'label' => 'All Models API',
+                                    ]);
+
+                                    $apiChildKeys = collect(app(MenuService::class)->data())
+                                        ->filter(static fn ($item) => ($item['parent_key'] ?? null) === 'api_integration')
+                                        ->keys()
+                                        ->all();
+
+                                    if ($apiChildKeys !== []) {
+                                        Models\Common\Menu::query()
+                                            ->whereIn('key', $apiChildKeys)
+                                            ->update([
+                                                'parent_id' => $apiIntegration->id,
+                                            ]);
+                                    }
+                                }
+
                                 Models\Common\Menu::query()->where('key', 'admin_finance_plan')->update([
                                     'label' => 'Pricing Plans',
+                                ]);
+
+                                Models\Common\Menu::query()->where('key', 'user_management')->update([
+                                    'label' => 'User Settings',
+                                ]);
+
+                                Models\Common\Menu::query()->where('key', 'frontend')->update([
+                                    'label' => 'Frontend Settings',
+                                ]);
+
+                                Models\Common\Menu::query()->where('key', 'finance')->update([
+                                    'label' => 'Pricing Settings',
+                                ]);
+
+                                Models\Common\Menu::query()->where('key', 'templates')->update([
+                                    'label' => 'Templates Settings',
                                 ]);
 
                                 $setting = Models\Common\Menu::query()

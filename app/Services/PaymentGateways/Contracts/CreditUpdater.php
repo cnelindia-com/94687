@@ -5,8 +5,10 @@ namespace App\Services\PaymentGateways\Contracts;
 use App\Domains\Entity\Enums\EntityEnum;
 use App\Domains\Entity\Facades\Entity;
 use App\Http\Controllers\Team\TeamController;
+use App\Models\Finance\Subscription;
 use App\Models\Plan;
 use App\Models\User;
+use App\Services\Analytics\GoogleTagManager;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +113,20 @@ $type = $plan->type;
      */
     public static function creditDecreaseCancelPlan(User $user, Plan $plan): void
     {
+        $cancelledSub = Subscription::query()
+            ->where('user_id', $user->id)
+            ->whereIn('stripe_status', ['cancelled', 'canceled', 'bank_canceled'])
+            ->orderByDesc('id')
+            ->first();
+
+        // Always track cancel for GTM, even when soft cancellation skips credit decrease.
+        GoogleTagManager::subscriptionCancelledForUser(
+            $user,
+            $plan,
+            $cancelledSub?->stripe_id,
+            $plan?->id
+        );
+
         $team = null;
         $isTeamPlan = $plan->getAttribute('is_team_plan') ?? false;
         if ($isTeamPlan) {

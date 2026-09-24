@@ -1,13 +1,16 @@
 <?php
 
 namespace App\Http\Controllers\Dashboard;
-use App\Models\User;
+
 use App\Actions\TicketAction;
 use App\Http\Controllers\Controller;
+use App\Mail\SupportNewTicketMail;
 use App\Mail\SupportReplyMail;
 use App\Models\SupportSetting;
+use App\Models\User;
 use App\Models\UserSupport;
 use App\Models\UserSupportMessage;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -30,54 +33,100 @@ class SupportController extends Controller
         return view('panel.support.new');
     }
 
-    public function newTicketSend(Request $request): void
+    public function newTicketSend(Request $request): RedirectResponse
     {
         if (! $user = Auth::user()) {
-            return;
+            return redirect()
+                ->route('dashboard.support.new')
+                ->with([
+                    'type'    => 'error',
+                    'message' => __('Unauthorized'),
+                ]);
         }
 
-        $support = $user->supportRequests()->create([
-            'ticket_id' => Str::upper(Str::random(10)),
-            'priority'  => $request->priority,
-            'category'  => $request->category,
-            'subject'   => $request->subject,
+        $validated = $request->validate([
+            'priority'   => 'required|string|max:50',
+            'category'   => 'required|string|max:100',
+            'subject'    => 'required|string|max:255',
+            'message'    => 'required|string|max:5000',
+            'attachment' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp,bmp,svg|max:10240',
         ]);
 
-        TicketAction::ticket($support)
-            ->fromUser()
-            ->withAttachment($request->file('attachment'))
-            ->new($request->message)
-            ->send();
-
-        // Send email notification to support_settings email
         try {
-            $supportSettings = SupportSetting::getSettings();
-            $recipientEmail = $supportSettings->email; // Send to support_settings email
-            
-            \Log::info('Sending new ticket email to support_settings', [
-                'ticket_id' => $support->ticket_id,
-                'user_id' => $user->id,
-                'recipient_email' => $recipientEmail,
+            $support = $user->supportRequests()->create([
+                'ticket_id' => Str::upper(Str::random(10)),
+                'priority'  => $validated['priority'],
+                'category'  => $validated['category'],
+                'subject'   => $validated['subject'],
             ]);
 
-            Mail::to($recipientEmail)->send(
-                new SupportNewTicketMail(
-                    userName: $user->fullName(),
-                    userEmail: $user->email,
-                    ticketId: $support->ticket_id,
-                    subject: $support->subject,
-                    message: $request->input('message'),
-                    supportSettings: $supportSettings
-                )
-            );
+            TicketAction::ticket($support)
+                ->fromUser()
+                ->withAttachment($request->file('attachment'))
+                ->new($validated['message'])
+                ->send();
 
-            \Log::info('New ticket email sent successfully', [
-                'ticket_id' => $support->ticket_id,
-                'email' => $recipientEmail,
+            $emailSent = false;
+            $emailError = null;
+
+            try {
+                $supportSettings = SupportSetting::getSettings();
+                $recipientEmail = trim((string) $supportSettings->email);
+
+                if ($recipientEmail === '') {
+                    $emailError = __('Support email is not configured in Support Settings.');
+                    \Log::warning('New ticket created but support email is empty', [
+                        'ticket_id' => $support->ticket_id,
+                    ]);
+                } else {
+                    Mail::to($recipientEmail)->send(
+                        new SupportNewTicketMail(
+                            userName: $user->fullName(),
+                            userEmail: $user->email,
+                            ticketId: $support->ticket_id,
+                            ticketSubject: $support->subject,
+                            messageText: $validated['message'],
+                            supportSettings: $supportSettings
+                        )
+                    );
+                    $emailSent = true;
+
+                    \Log::info('New ticket email sent', [
+                        'ticket_id' => $support->ticket_id,
+                        'to'        => $recipientEmail,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                $emailError = $e->getMessage();
+                \Log::error('Failed to send new ticket notification email: ' . $e->getMessage(), [
+                    'ticket_id' => $support->ticket_id,
+                ]);
+            }
+
+            $successMessage = __('Support request submitted successfully. Ticket ID: :ticket', [
+                'ticket' => $support->ticket_id,
             ]);
-        } catch (\Exception $e) {
-            // Log error but don't stop the process
-            \Log::error('Failed to send new ticket notification email: ' . $e->getMessage());
+
+            if (! $emailSent) {
+                $successMessage .= ' ' . __('Warning: notification email was not sent.') . ($emailError ? ' (' . $emailError . ')' : '');
+            }
+
+            return redirect()
+                ->route('dashboard.support.list')
+                ->with([
+                    'type'    => $emailSent ? 'success' : 'warning',
+                    'message' => $successMessage,
+                ]);
+        } catch (\Throwable $e) {
+            \Log::error('Failed to create support ticket: ' . $e->getMessage());
+
+            return redirect()
+                ->route('dashboard.support.new')
+                ->withInput()
+                ->with([
+                    'type'    => 'error',
+                    'message' => __('Failed to submit support request. Please try again.'),
+                ]);
         }
     }
 
@@ -315,7 +364,7 @@ class SupportController extends Controller
             'tutorial_title' => 'nullable|string|max:255',
             'tutorial_subtitle' => 'nullable|string|max:500',
             'tutorials' => 'required|array|min:1',
-            'tutorials.*.slot' => 'required|integer|min:1|max:10',
+            'tutorials.*.slot' => 'nullable|integer|min:1',
             'tutorials.*.title' => 'required|string|max:255',
             'tutorials.*.description' => 'required|string|max:1000',
             'tutorials.*.instructions' => 'required|string|max:5000',
@@ -343,14 +392,26 @@ class SupportController extends Controller
                     : __('Complete guide to all platform features'),
             ]);
 
-            $tutorials = $this->loadTutorials();
+            // Form list is source of truth. Keep submitted slots when unique;
+            // if a slot is missing/duplicated, fall back to form order so new
+            // tutorials never overwrite an existing one by defaulting to slot 1.
+            $tutorials = [];
+            $usedSlots = [];
 
-            foreach ($request->input('tutorials', []) as $index => $tutorialData) {
-                $slot = (int) ($tutorialData['slot'] ?? $index + 1);
-                $existingTutorial = collect($tutorials)->firstWhere('slot', $slot) ?? [];
+            foreach (array_values($request->input('tutorials', [])) as $index => $tutorialData) {
                 $embedCode = trim((string) ($tutorialData['embed_code'] ?? ''));
+                $requestedSlot = (int) ($tutorialData['slot'] ?? 0);
+                $slot = $requestedSlot > 0 ? $requestedSlot : ($index + 1);
 
-                $tutorials = array_values(array_filter($tutorials, fn ($item) => (int) ($item['slot'] ?? 0) !== $slot));
+                if (isset($usedSlots[$slot])) {
+                    $slot = $index + 1;
+                    while (isset($usedSlots[$slot])) {
+                        $slot++;
+                    }
+                }
+
+                $usedSlots[$slot] = true;
+
                 $tutorials[] = [
                     'slot' => $slot,
                     'title' => $tutorialData['title'] ?? '',

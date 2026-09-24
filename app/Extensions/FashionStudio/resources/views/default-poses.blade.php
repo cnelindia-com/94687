@@ -61,7 +61,7 @@
 
         {{-- Create Tab --}}
         <div id="tab-content-create" class="hidden">
-            <form id="create-pose-form" method="POST" action="{{ route('fashion-studio.save-custom-pose') }}"
+            <form id="create-pose-form" method="POST" action="{{ route('dashboard.user.fashion-studio.default-poses.save-custom-pose') }}"
                 enctype="multipart/form-data">
                 @csrf
                 <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -232,7 +232,7 @@
         function deletePose(id, btn) {
             if (!confirm('Are you sure you want to delete this pose?')) return;
             const card = btn.closest('.pose-card');
-            fetch(`/fashion-studio/delete-pose/${id}`, {
+            fetch(`{{ url('dashboard/user/fashion-studio/default-poses/delete-pose') }}/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -314,7 +314,7 @@
                 rank: index + 1
             }));
 
-            fetch('{{ route("fashion-studio.update-pose-rank") }}', {
+            fetch('{{ route("dashboard.user.fashion-studio.default-poses.update-rank") }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

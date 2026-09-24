@@ -49,6 +49,15 @@ class BackgroundController extends Controller
             SET u.total_credit = c.net_credit
             WHERE u.id = ?
         ", [$userId, $userId]);
+
+        $source = \App\Services\Analytics\GoogleTagManager::sourceFromAssetType('background');
+        \App\Services\Analytics\GoogleTagManager::creditsUsedById($userId, $credits, [
+            'record_id'    => $recordId,
+            'source'       => $source['source'],
+            'source_label' => $source['source_label'],
+            'action'       => $source['credits_label'],
+            'item'         => $source['item'],
+        ]);
     }
 
     /**
@@ -179,7 +188,7 @@ class BackgroundController extends Controller
                 'generation_uuid'     => $requestId,
             ]);
 
-            $this->deductCreditsForRecord($userId, $background->id, 1, 'Background created');
+            $this->deductCreditsForRecord($userId, $background->id, 1, 'Credits used for Background creation');
 
             // Dispatch job to check generation status
             CheckFalAIGenerationJob::dispatch($background->id, 'image', 'background')->delay(now()->addSeconds(5));

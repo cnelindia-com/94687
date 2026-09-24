@@ -40,6 +40,16 @@ abstract class BaseFashionStudioController extends Controller
     abstract protected function getImageUrls(): array;
     abstract protected function getResponseKey(): string;
 
+    /**
+     * Source info for GTM events (photoshoot, virtual try-on, etc.).
+     *
+     * @return array{source: string, source_label: string, credits_label: string, item: string, event_name: string}
+     */
+    protected function getGtmSourceInfo(): array
+    {
+        return \App\Services\Analytics\GoogleTagManager::sourceFromAssetType($this->getSlugSuffix());
+    }
+
     protected function getNumImages(): int
     {
         return 1;
@@ -88,11 +98,14 @@ abstract class BaseFashionStudioController extends Controller
             return;
         }
 
+        $gtmSource = $this->getGtmSourceInfo();
+        $creditAction = $gtmSource['credits_label'];
+
         DB::table('credits')->insert([
             'user_id'    => $user->id,
             'credits'    => $creditsToDeduct,
             'types'      => 2,
-            'action'     => $this->getUserSettings()->resolution . ' image created',
+            'action'     => $creditAction,
             'created_at' => now(),
             'recordid'   => $record->id,
         ]);
@@ -113,6 +126,16 @@ abstract class BaseFashionStudioController extends Controller
             SET u.total_credit = c.net_credit
             WHERE u.id = ?
         ", [$userId, $userId]);
+
+        // Only fire when credits are fully used up — not on every generation.
+        \App\Services\Analytics\GoogleTagManager::creditsUsedIfExhausted($user, (int) $creditsToDeduct, [
+            'record_id'    => $record->id,
+            'resolution'   => $this->getUserSettings()->resolution,
+            'source'       => $gtmSource['source'],
+            'source_label' => $gtmSource['source_label'],
+            'action'       => $creditAction,
+            'item'         => $gtmSource['item'] ?? 'Image',
+        ]);
     }
 
     protected function refundCreditsForRecord(UserOpenai $record): void
@@ -217,6 +240,16 @@ abstract class BaseFashionStudioController extends Controller
         ]);
     }
 
+    $gtmSource = $this->getGtmSourceInfo();
+    $payloadData = array_merge($payloadData, [
+        'gtm_source'         => $gtmSource['source'],
+        'gtm_source_label'   => $gtmSource['source_label'],
+        'gtm_credits_label'  => $gtmSource['credits_label'],
+        'gtm_item'           => $gtmSource['item'] ?? 'Image',
+        'gtm_event_name'     => $gtmSource['event_name'] ?? \App\Services\Analytics\GoogleTagManager::imageEventNameFromItem($gtmSource['item'] ?? 'Image'),
+        'slug_suffix'        => $this->getSlugSuffix(),
+    ]);
+
     $record = UserOpenai::create([
         'team_id'    => $teamId,  // <-- FIX
         'title'      => $this->getGenerationTitle() . ($imageIndex > 0 ? " #{$imageIndex}" : ''),
@@ -231,7 +264,7 @@ abstract class BaseFashionStudioController extends Controller
         'hash'       => str()->random(256),
         'credits'    => $credits ?? $this->getCreditsPerImage(),
         'words'      => 0,
-        'storage'    => 'public',
+        'storage'    => $this->resolveImageStorageDriver(),
         'status'     => ImageStatusEnum::pending->value,
         'model'      => self::EDIT_MODEL,
         'engine'     => self::EDIT_MODEL->engine()->value,
@@ -369,8 +402,9 @@ abstract class BaseFashionStudioController extends Controller
 
                 if ($localPath) {
                     $record->update([
-                        'status' => ImageStatusEnum::completed->value,
-                        'output' => $localPath,
+                        'status'  => ImageStatusEnum::completed->value,
+                        'output'  => $localPath,
+                        'storage' => $this->resolveImageStorageDriver(),
                     ]);
                     $this->deductCreditsForRecord($record);
                     $createdRecords[] = $record;
@@ -386,6 +420,7 @@ abstract class BaseFashionStudioController extends Controller
                         $duplicateRecord->update([
                             'status'  => ImageStatusEnum::completed->value,
                             'output'  => $additionalLocalPath,
+                            'storage' => $this->resolveImageStorageDriver(),
                             'payload' => $payloadData,
                         ]);
                         $this->deductCreditsForRecord($duplicateRecord);
@@ -400,22 +435,80 @@ abstract class BaseFashionStudioController extends Controller
         return [$record];
     }
 
+    /**
+     * Prefer DigitalOcean Spaces (s3) for Fashion Studio generated images.
+     */
+    protected function resolveImageStorageDriver(): string
+    {
+        $driver = null;
+
+        try {
+            $driver = DB::table('settings_two')->value('ai_image_storage');
+        } catch (Exception $e) {
+            // fall through
+        }
+
+        if (! $driver) {
+            $driver = Helper::settingTwo('ai_image_storage');
+        }
+
+        $driver = strtolower(trim((string) ($driver ?: 'public')));
+        $s3 = config('filesystems.disks.s3', []);
+        $s3Ready = filled($s3['key'] ?? null) && filled($s3['secret'] ?? null) && filled($s3['bucket'] ?? null);
+
+        if ($s3Ready) {
+            return 's3';
+        }
+
+        $r2 = config('filesystems.disks.r2', []);
+        $r2Ready = filled($r2['key'] ?? null) && filled($r2['secret'] ?? null) && filled($r2['bucket'] ?? null);
+        if ($driver === 'r2' && $r2Ready) {
+            return 'r2';
+        }
+
+        return in_array($driver, ['s3', 'r2', 'public'], true) ? $driver : 'public';
+    }
+
+    /**
+     * Download generated image and upload to DigitalOcean Spaces (s3) when configured.
+     */
     protected function downloadAndSaveFile(string $url, ?string $defaultExtension = null): ?string
     {
         try {
             $response = Http::timeout(120)->get($url);
 
-            if ($response->successful()) {
-                $extension = $defaultExtension ?? pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
-                $fileName  = Str::uuid() . '.' . $extension;
-                $path      = 'media/images/u-' . auth()->id() . '/' . $fileName;
-
-                Storage::disk('public')->put($path, $response->body());
-
-                return Storage::disk('public')->url($path);
+            if (! $response->successful()) {
+                return null;
             }
+
+            $extension = $defaultExtension ?? pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+            $extension = strtolower(preg_replace('/[^a-z0-9]/i', '', $extension) ?: 'png');
+            $fileName  = Str::uuid() . '.' . $extension;
+            $path      = 'uploads/media/images/u-' . auth()->id() . '/' . $fileName;
+            $content   = $response->body();
+            $imageStorage = $this->resolveImageStorageDriver();
+
+            if ($imageStorage === 's3') {
+                Storage::disk('s3')->put($path, $content, 'public');
+
+                return preg_replace('/\s+/', '', (string) Storage::disk('s3')->url($path));
+            }
+
+            if ($imageStorage === 'r2') {
+                Storage::disk('r2')->put($path, $content);
+
+                return preg_replace('/\s+/', '', (string) Storage::disk('r2')->url($path));
+            }
+
+            Log::warning('BaseFashionStudioController: cloud storage not configured, saving locally', [
+                'path' => $path,
+            ]);
+
+            Storage::disk('public')->put($path, $content);
+
+            return preg_replace('/\s+/', '', (string) Storage::disk('public')->url($path));
         } catch (Exception $e) {
-            Log::error('BaseFashionStudioController: Error downloading file', [
+            Log::error('BaseFashionStudioController: Error downloading/uploading file', [
                 'url'   => $url,
                 'error' => $e->getMessage(),
             ]);
