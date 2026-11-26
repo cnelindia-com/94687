@@ -24,7 +24,7 @@
 <div
     class="bg-background py-12"
     x-cloak
-    x-data="myPhotoShootsComponent()"
+    x-data="myPhotoShootsComponent"
     @keyup.escape.window="isCropMode ? exitCropMode() : (modalShow = false)"
     @keyup.arrow-left.window="modalShow && !isCropMode && prevItem()"
     @keyup.arrow-right.window="modalShow && !isCropMode && nextItem()"
@@ -644,27 +644,11 @@
                 this.loading = true;
 
                 try {
-                    const url = new URL(ROUTES.loadImages, window.location.origin);
+                    const url = new URL(ROUTES.loadImages);
                     url.searchParams.set('page', '1');
 
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-                    const response = await fetch(url, {
-                        signal: controller.signal,
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    });
-                    clearTimeout(timeoutId);
-
+                    const response = await fetch(url);
                     if (!response.ok) throw new Error('Failed to fetch images');
-
-                    const contentType = response.headers.get('content-type') || '';
-                    if (!contentType.includes('application/json')) {
-                        throw new Error('Invalid images response');
-                    }
 
                     const data = await response.json();
                     const images = (data.images || data).map(img => ({
@@ -675,10 +659,7 @@
                     this.images = images;
                 } catch (error) {
                     console.error('Failed to load images:', error);
-                    this.images = [];
-                    if (typeof this.showNotification === 'function') {
-                        this.showNotification(MESSAGES.loadError, 'error');
-                    }
+                    this.showNotification(MESSAGES.loadError, 'error');
                 } finally {
                     this.loading = false;
                 }

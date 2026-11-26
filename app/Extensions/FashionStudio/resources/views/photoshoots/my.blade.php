@@ -44,7 +44,7 @@
 @section('content')
     <div
         class="py-12"
-        x-data="myPhotoShootsComponent()"
+        x-data="myPhotoShootsComponent"
         @keyup.escape.window="isCropMode ? exitCropMode() : (modalShow = false)"
         @keyup.arrow-left.window="modalShow && !isCropMode && prevItem()"
         @keyup.arrow-right.window="modalShow && !isCropMode && nextItem()"
