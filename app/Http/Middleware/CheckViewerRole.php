@@ -48,19 +48,18 @@ class CheckViewerRole
             'dashboard.user.fashion-studio.photo_shoots.images.load',
         ];
 
-        // Suspended users: Support + Fashion Studio Settings + Logout only.
+        // Suspended users: Home + Support + Fashion Studio Settings + Logout only.
         $allowedSuspendedRoutes = [
             'logout',
+            'index',
             'dashboard.support.*',
             'dashboard.user.fashion-studio.user_settings.*',
             'dashboard.user.settings.*',
+            'vip-intercom-partial'
         ];
 
         if ($isSuspended) {
-            if (in_array($currentRouteName, [
-                'dashboard.index',
-                'dashboard.user.fashion-studio.index',
-            ], true)) {
+            if ($currentRouteName === 'dashboard.user.fashion-studio.index') {
                 return redirect()->route('dashboard.support.list');
             }
 
@@ -81,8 +80,14 @@ class CheckViewerRole
 
             // Return a terminal response so the blocked controller cannot render.
             if (! $isAllowed) {
+                if("dashboard.index"== $currentRouteName) {
+                    return redirect()->route('dashboard.support.list')->with([
+                        'type'    => 'error',
+                        'message' => __('Your account is suspended and this page is not available.'),
+                    ]);
+                }
                 return response(
-                    'Forbidden: your account is suspended and this page is not available.',
+                   $currentRouteName. 'Forbidden: your account is suspended and this page is not available.',
                     403,
                     [
                         'Cache-Control' => 'no-store, no-cache, must-revalidate',
