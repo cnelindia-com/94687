@@ -137,22 +137,6 @@
                             />
                         </x-form.group>
                     </div>
-
-                    <div class="mt-5 w-1/2">
-    <x-form.group
-        label="{{ __('Total Credits') }}"
-        tooltip="{{ __('Is pack ko purchase karne par user ko itne credits milenge') }}"
-        error="plan.total_credits"
-    >
-        <x-form.text
-            class="{{ $errors->has('plan.total_credits') ? 'border-2 border-rose-500' : '' }}"
-            wire:model="plan.total_credits"
-            type="number"
-            min="0"
-            placeholder="{{ __('Total Credits') }}"
-        />
-    </x-form.group>
-</div>
                 </div>
             </div>
         @endif

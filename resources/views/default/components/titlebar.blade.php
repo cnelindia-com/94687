@@ -68,24 +68,11 @@
                     @else
                         @if (route('dashboard.user.index') === $current_url || route('dashboard.admin.index') === $current_url)
                             {{ __('Dashboard') }}
-                        @elseif (!empty($isSuspendedTeamMember))
-                            <x-button
-                                class="text-inherit hover:text-foreground"
-                                variant="link"
-                                href="{{ route('dashboard.support.list') }}"
-                                onclick="event.preventDefault(); window.location.replace(this.href);"
-                            >
-                                <x-tabler-chevron-left
-                                    class="size-4"
-                                    stroke-width="1.5"
-                                />
-                                {{ __('Back to Support') }}
-                            </x-button>
                         @else
                             <x-button
                                 class="text-inherit hover:text-foreground"
                                 variant="link"
-                                href="{{ route('dashboard.user.fashion-studio.index') }}"
+                                href="{{ route('dashboard.index') }}"
                             >
                                 <x-tabler-chevron-left
                                     class="size-4"
@@ -170,18 +157,17 @@
                             </x-slot:modal>
                         </x-modal>
                     @else
-                    <!-- pritam button -->
-                        <!-- <x-button
+                        <x-button
                             variant="ghost-shadow"
                             href="{{ route('dashboard.user.openai.documents.all') }}"
                         >
                             {{ __('My Documents') }}
-                        </x-button> -->
+                        </x-button>
                     @endif
-                    <!-- <x-button href="{{ $generator_link }}">
+                    <x-button href="{{ $generator_link }}">
                         <x-tabler-plus class="size-4" />
                         {{ __('New') }}
-                    </x-button> -->
+                    </x-button>
                 </div>
             @endif
 

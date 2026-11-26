@@ -1,22 +1,12 @@
 @extends('panel.layout.app')
 @section('title', __('Support Requests'))
 @section('titlebar_actions')
-    <div class="flex flex-wrap items-center gap-2">
-        @if (!empty($isSuspendedTeamMember))
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <x-button type="submit" variant="danger">
-                    {{ __('Logout') }}
-                </x-button>
-            </form>
-        @endif
-        @if (!Auth::user()->isAdmin())
-            <x-button href="{{ route('dashboard.support.new') }}">
-                {{ __('Create New Support Request') }}
-                <x-tabler-plus class="size-4" />
-            </x-button>
-        @endif
-    </div>
+    @if (!Auth::user()->isAdmin())
+        <x-button href="{{ route('dashboard.support.new') }}">
+            {{ __('Create New Support Request') }}
+            <x-tabler-plus class="size-4" />
+        </x-button>
+    @endif
 @endsection
 @section('content')
     <div class="py-10">

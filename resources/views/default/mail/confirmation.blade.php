@@ -440,15 +440,7 @@
                 <div class="content-indent">
 
                     @php
-                        $confirmationCode = $user->email_confirmation_code ?: '';
-                        $activationUrl = $confirmationCode
-                            ? $settings->site_url . '/confirm/email/' . $confirmationCode
-                            : $settings->site_url . '/login';
-                        $template->content = str_replace(
-                            ['{site_name}', '{site_url}', '{reset_url}', '{affiliate_url}', '{user_name}', '{user_activation_url}'],
-                            [$settings->site_name, $settings->site_url, $settings->site_url . '/forgot-password/retrieve/' . $user->password_reset_code, $settings->site_url . '/register?aff=' . $user->affiliate_code, $user->name, $activationUrl],
-                            $template->content
-                        );
+                        $template->content = str_replace(['{site_name}', '{site_url}', '{reset_url}', '{affiliate_url}', '{user_name}', '{user_activation_url}'], [$settings->site_name, $settings->site_url, $settings->site_url . '/forgot-password/retrieve/' . $user->password_reset_code, $settings->site_url . '/register?aff=' . $user->affiliate_code, $user->name, $settings->site_url . '/confirm/email/' . $user->email_confirmation_code], $template->content);
                     @endphp
 
                     {!! $template->content !!}

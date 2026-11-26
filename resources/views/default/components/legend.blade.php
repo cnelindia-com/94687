@@ -16,7 +16,7 @@
 <div {{ $attributes->withoutTwMergeClasses()->twMerge($base_class, $attributes->get('class')) }}>
     <span {{ $attributes->twMergeFor('box', $size, $box_base_class) }}></span>
     <span {{ $attributes->twMergeFor('label', $label_base_class) }}>
-        {{ $label }} test
+        {{ $label }}
     </span>
     {{ $slot }}
 </div>

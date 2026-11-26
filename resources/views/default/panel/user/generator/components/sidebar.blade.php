@@ -380,7 +380,7 @@
     type="hidden"
     value="{{ $apikeyPart1 }}"
 >
-<input
+<input      
     id="guest_look_id"
     type="hidden"
     value="{{ $apikeyPart2 }}"

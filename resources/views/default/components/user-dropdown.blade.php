@@ -54,7 +54,7 @@
 			   ['route' => 'dashboard.user.2fa.activate', 'label' => '2-Factor Auth.'],
 			   ['route' => 'dashboard.user.payment.subscription', 'label' => 'Plan'],
 			   ['route' => 'dashboard.user.orders.index', 'label' => 'Orders'],
-			   ['route' => 'dashboard.user.fashion-studio.user_settings.index', 'label' => 'Settings'],
+			   ['route' => 'dashboard.user.settings.index', 'label' => 'Settings'],
 			] as $item)
 
 				<a class="flex w-full items-center px-3 py-2 hover:bg-foreground/5"

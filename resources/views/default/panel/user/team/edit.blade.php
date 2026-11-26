@@ -19,11 +19,8 @@
 					@if ($member->joined_at)
 						<p>@lang('Member Since') {{ $member->joined_at->format('M d, Y') }}</p>
 					@endif
-					@php
-						$displayStatus = $member->status === 'cancelled' ? 'suspended' : $member->status;
-					@endphp
 					<span
-						class="badge bg- bg-{{ $displayStatus == 'waiting' ? 'dark font-weight-medium' : ($displayStatus == 'active' ? 'success' : 'danger') }}">@lang(strtoupper($displayStatus))</span>
+						class="badge bg- bg-{{ $member->status == 'waiting' ? 'dark font-weight-medium' : ($member->status == 'active' ? 'success' : 'danger') }}">@lang(strtoupper($member->status))</span>
 				</div>
 			</div>
 
@@ -136,20 +133,16 @@
 								{{ $member->status == 'active' ? 'selected' : '' }}
 							>
 								@lang('Active')</option>
-							@if ($member->status == 'waiting')
-								<option
-									value="waiting"
-									selected
-								>
-									@lang('Waiting')</option>
-							@endif
-							@if (in_array($member->status, ['suspended', 'cancelled'], true))
-								<option
-									value="suspended"
-									selected
-								>
-									@lang('Suspended')</option>
-							@endif
+							<option
+								value="waiting"
+								{{ $member->status == 'waiting' ? 'selected' : '' }}
+							>
+								@lang('Waiting')</option>
+							<option
+								value="cancelled"
+								{{ $member->status == 'cancelled' ? 'selected' : '' }}
+							>
+								@lang('Cancelled')</option>
 						</select>
 						@error('status')
 						<div class="invalid-feedback">

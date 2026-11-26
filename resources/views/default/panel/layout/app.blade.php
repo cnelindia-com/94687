@@ -67,7 +67,7 @@
 
     @include('panel.layout.partials.loading')
 
-    <div class="lqd-page relative flex min-h-screen flex-col">
+    <div class="lqd-page relative flex min-h-full flex-col">
 
         <div class="lqd-page-wrapper grow-1 flex">
             @php
@@ -85,9 +85,6 @@
             <div class="lqd-page-content-wrap flex grow flex-col overflow-hidden">
                 @if ($good_for_now)
                     @auth
-                        @if (!isset($disable_suspended_banner))
-                            @include('panel.layout.partials.suspended-banner')
-                        @endif
                         @if (!isset($disable_header))
                             @include('panel.layout.header', ['layout_wide', isset($layout_wide) ? $layout_wide : ''])
                         @endif
@@ -127,9 +124,6 @@
                     </div>
                 @else
                     @auth
-                        @if (!isset($disable_suspended_banner))
-                            @include('panel.layout.partials.suspended-banner')
-                        @endif
                         @if (!isset($disable_header))
                             @include('panel.layout.header', ['layout_wide', isset($layout_wide) ? $layout_wide : ''])
                         @endif

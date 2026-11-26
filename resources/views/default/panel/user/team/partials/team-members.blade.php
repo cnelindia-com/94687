@@ -59,11 +59,8 @@
 
                 <!-- Status -->
                 <td>
-                    @php
-                        $displayStatus = $member->status === 'cancelled' ? 'suspended' : $member->status;
-                    @endphp
-                    <x-badge variant="{{ $displayStatus == 'waiting' ? 'secondary' : ($displayStatus == 'active' ? 'success' : 'danger') }}">
-                        @lang(ucfirst($displayStatus))
+                    <x-badge variant="{{ $member->status == 'waiting' ? 'secondary' : ($member->status == 'active' ? 'success' : 'danger') }}">
+                        @lang(ucfirst($member->status))
                     </x-badge>
                 </td>
 

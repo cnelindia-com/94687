@@ -4,18 +4,6 @@
 >
     {{ __('Skip to content') }}
 </a>
-@php
-    $hideSidebarExtras = false;
-
-    $showAffiliate = false;
-    if ($setting->feature_affilates && (auth()->user()?->affiliate_status === 1)) {
-        if (setting('affiliate_plan_restriction', '0')) {
-            $showAffiliate = check_plan_affiliate_status(auth()->user());
-        } else {
-            $showAffiliate = true;
-        }
-    }
-@endphp
 
 <button
     class="lqd-navbar-expander fixed start-[--navbar-width] top-[calc(var(--header-height)/2)] z-[999] inline-flex size-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-button border-0 bg-foreground/10 p-0 text-heading-foreground backdrop-blur-sm transition-all hover:bg-heading-foreground hover:text-heading-background group-[.navbar-shrinked]/body:!start-[80px] group-[.navbar-shrinked]/body:rotate-180 max-lg:hidden rtl:translate-x-1/2"
@@ -46,10 +34,8 @@
             class="lqd-navbar-nav"
             id="navbar-menu"
         >
-        <!-- Pritam -->
-        
             @php
-                $hideSidebarExtras = false;
+                $hideSidebarExtras = request()->routeIs('dashboard.user.fashion-studio.*');
             @endphp
             <ul class="lqd-navbar-ul">
                 {{-- @include('panel.layout.partials.menu') --}}
@@ -76,21 +62,21 @@
                     <x-navbar.item>
                         <x-navbar.divider />
                     </x-navbar.item>
-                 @if ($showAffiliate)
-                    <!-- <x-navbar.item class="group-[&.navbar-shrinked]/body:hidden">
+
+                    <x-navbar.item class="group-[&.navbar-shrinked]/body:hidden">
                         <x-navbar.label>
                             {{ __('Credits') }}
                         </x-navbar.label>
-                    </x-navbar.item> -->
+                    </x-navbar.item>
 
-                    <!-- <x-navbar.item class="pb-navbar-link-pb pe-navbar-link-pe ps-navbar-link-ps pt-navbar-link-pt group-[&.navbar-shrinked]/body:hidden">
+                    <x-navbar.item class="pb-navbar-link-pb pe-navbar-link-pe ps-navbar-link-ps pt-navbar-link-pt group-[&.navbar-shrinked]/body:hidden">
                         <x-credit-list
                             modal-trigger-pos="block"
                             expanded-modal-trigger="true"
                         />
-                    </x-navbar.item> -->
-              @endif
-                     @if ($showAffiliate)
+                    </x-navbar.item>
+
+                    @if ($setting->feature_affilates && \auth()->user()?->affiliate_status == 1)
                         <x-navbar.item class="group-[&.navbar-shrinked]/body:hidden">
                             <x-navbar.divider />
                         </x-navbar.item>

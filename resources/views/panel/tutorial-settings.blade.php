@@ -43,17 +43,11 @@
                     </div>
                 </div>
 
-                @php
-                    $maxExistingSlot = collect($tutorials)->max(fn ($tutorial) => (int) ($tutorial['slot'] ?? 0)) ?: count($tutorials);
-                    $slotOptionCount = max(20, $maxExistingSlot + 10, count($tutorials) + 10);
-                @endphp
-
-                <div id="tutorial-repeater" class="grid gap-4" data-slot-options="{{ $slotOptionCount }}">
+                <div id="tutorial-repeater" class="grid gap-4">
                     @foreach ($tutorials as $index => $tutorial)
-                        @php $currentSlot = (int) ($tutorial['slot'] ?? $index + 1); @endphp
                         <div class="tutorial-item rounded-2xl border border-gray-200 bg-white p-4 shadow-sm" data-index="{{ $index }}">
                             <div class="mb-4 flex items-center justify-between gap-3">
-                                <h5 class="tutorial-item-title text-lg font-semibold text-gray-800">{{ __('Tutorial') }} {{ $currentSlot }}</h5>
+                                <h5 class="text-lg font-semibold text-gray-800">{{ __('Tutorial') }} {{ $tutorial['slot'] ?? $index + 1 }}</h5>
                                 <button type="button" class="remove-tutorial rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
                                     {{ __('Remove') }}
                                 </button>
@@ -61,9 +55,9 @@
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
                                     <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Slot') }}</label>
-                                    <select name="tutorials[{{ $index }}][slot]" class="tutorial-slot-select w-full rounded-lg border-gray-300 py-4 px-4">
-                                        @for ($slot = 1; $slot <= $slotOptionCount; $slot++)
-                                            <option value="{{ $slot }}" @selected($currentSlot === $slot)>
+                                    <select name="tutorials[{{ $index }}][slot]" class="w-full rounded-lg border-gray-300 py-4 px-4">
+                                        @for ($slot = 1; $slot <= 10; $slot++)
+                                            <option value="{{ $slot }}" @selected((int) ($tutorial['slot'] ?? $index + 1) === $slot)>
                                                 {{ __('Tutorial') }} {{ $slot }}
                                             </option>
                                         @endfor
@@ -111,128 +105,58 @@
 
     if (!repeater || !addButton) return;
 
-    const tutorialLabel = @json(__('Tutorial'));
-    const removeLabel = @json(__('Remove'));
-    const slotLabel = @json(__('Slot'));
-    const embedLabel = @json(__('Embed Code'));
-    const embedPlaceholder = @json(__('Paste YouTube or Vimeo embed code'));
-    const titleLabel = @json(__('Title'));
-    const titlePlaceholder = @json(__('Enter title'));
-    const descriptionLabel = @json(__('Short Description'));
-    const descriptionPlaceholder = @json(__('Enter short description'));
-    const instructionsLabel = @json(__('Instructions'));
-    const instructionsPlaceholder = @json(__('Enter instructions'));
-    const atLeastOneLabel = @json(__('At least one tutorial is required.'));
-
-    const getUsedSlots = () => {
-        return [...repeater.querySelectorAll('.tutorial-slot-select')]
-            .map((select) => parseInt(select.value, 10) || 0)
-            .filter((slot) => slot > 0);
-    };
-
-    const getNextSlot = () => {
-        const used = getUsedSlots();
-        const next = (used.length ? Math.max(...used) : 0) + 1;
-        return next;
-    };
-
-    const getSlotOptionCount = (neededSlot) => {
-        const current = parseInt(repeater.dataset.slotOptions || '20', 10) || 20;
-        const nextCount = Math.max(current, neededSlot + 5, 20);
-        repeater.dataset.slotOptions = String(nextCount);
-        return nextCount;
-    };
-
-    const buildSlotOptions = (selectedSlot) => {
-        const optionCount = getSlotOptionCount(selectedSlot);
-        let html = '';
-        for (let slot = 1; slot <= optionCount; slot++) {
-            const selected = slot === selectedSlot ? ' selected' : '';
-            html += `<option value="${slot}"${selected}>${tutorialLabel} ${slot}</option>`;
-        }
-        return html;
-    };
-
-    const createItem = (index, slot) => `
+    const createItem = (index) => `
         <div class="tutorial-item rounded-2xl border border-gray-200 bg-white p-4 shadow-sm" data-index="${index}">
             <div class="mb-4 flex items-center justify-between gap-3">
-                <h5 class="tutorial-item-title text-lg font-semibold text-gray-800">${tutorialLabel} ${slot}</h5>
+                <h5 class="text-lg font-semibold text-gray-800">{{ __('Tutorial') }} ${index + 1}</h5>
                 <button type="button" class="remove-tutorial rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
-                    ${removeLabel}
+                    {{ __('Remove') }}
                 </button>
             </div>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">${slotLabel}</label>
-                    <select name="tutorials[${index}][slot]" class="tutorial-slot-select w-full rounded-lg border-gray-300 py-4 px-4">
-                        ${buildSlotOptions(slot)}
+                    <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Slot') }}</label>
+                    <select name="tutorials[${index}][slot]" class="w-full rounded-lg border-gray-300 py-4 px-4">
+                        ${Array.from({ length: 10 }, (_, slotIndex) => {
+                            const slot = slotIndex + 1;
+                            return `<option value="${slot}">{{ __('Tutorial') }} ${slot}</option>`;
+                        }).join('')}
                     </select>
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">${embedLabel}</label>
-                    <textarea name="tutorials[${index}][embed_code]" rows="6" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="${embedPlaceholder}"></textarea>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Video Type') }}</label>
+                                    <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Embed Code') }}</label>
+                                    <textarea name="tutorials[${index}][embed_code]" rows="6" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="{{ __('Paste YouTube or Vimeo embed code') }}"></textarea>
                 </div>
             </div>
             <div class="mt-4">
-                <label class="mb-2 block text-sm font-medium text-gray-700">${titleLabel}</label>
-                <input type="text" name="tutorials[${index}][title]" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-4 text-base shadow-sm focus:border-primary focus:ring-primary" placeholder="${titlePlaceholder}">
+                <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Title') }}</label>
+                <input type="text" name="tutorials[${index}][title]" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-4 text-base shadow-sm focus:border-primary focus:ring-primary" placeholder="{{ __('Enter title') }}">
             </div>
             <div class="mt-4">
-                <label class="mb-2 block text-sm font-medium text-gray-700">${descriptionLabel}</label>
-                <input type="text" name="tutorials[${index}][description]" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="${descriptionPlaceholder}">
+                <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Short Description') }}</label>
+                <input type="text" name="tutorials[${index}][description]" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="{{ __('Enter short description') }}">
             </div>
             <div class="mt-4">
-                <label class="mb-2 block text-sm font-medium text-gray-700">${instructionsLabel}</label>
-                <textarea name="tutorials[${index}][instructions]" rows="5" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="${instructionsPlaceholder}"></textarea>
+                <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('Instructions') }}</label>
+                <textarea name="tutorials[${index}][instructions]" rows="5" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3" placeholder="{{ __('Enter instructions') }}"></textarea>
             </div>
         </div>
     `;
 
-    const reindexItems = () => {
-        repeater.querySelectorAll('.tutorial-item').forEach((item, index) => {
-            item.dataset.index = String(index);
-            item.querySelectorAll('[name^="tutorials["]').forEach((field) => {
-                const name = field.getAttribute('name') || '';
-                field.setAttribute('name', name.replace(/tutorials\[\d+]/, `tutorials[${index}]`));
-            });
-        });
-    };
-
-    const syncItemTitle = (item) => {
-        const select = item.querySelector('.tutorial-slot-select');
-        const title = item.querySelector('.tutorial-item-title');
-        if (!select || !title) return;
-        title.textContent = `${tutorialLabel} ${select.value}`;
-    };
-
     addButton.addEventListener('click', () => {
         const index = repeater.querySelectorAll('.tutorial-item').length;
-        const nextSlot = getNextSlot(); // e.g. if 1-4 used, this becomes 5 — NOT 1
-        repeater.insertAdjacentHTML('beforeend', createItem(index, nextSlot));
-    });
-
-    repeater.addEventListener('change', (event) => {
-        const select = event.target.closest('.tutorial-slot-select');
-        if (!select) return;
-        syncItemTitle(select.closest('.tutorial-item'));
+        repeater.insertAdjacentHTML('beforeend', createItem(index));
     });
 
     repeater.addEventListener('click', (event) => {
         const removeButton = event.target.closest('.remove-tutorial');
         if (!removeButton) return;
 
-        const items = repeater.querySelectorAll('.tutorial-item');
-        if (items.length <= 1) {
-            alert(atLeastOneLabel);
-            return;
-        }
-
         const item = removeButton.closest('.tutorial-item');
-        if (item) {
-            item.remove();
-            reindexItems();
-        }
+        if (item) item.remove();
     });
+
 })();
 </script>
 @endpush

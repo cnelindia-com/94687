@@ -23,7 +23,7 @@
                         <x-info-tooltip text="{{ __('Your total income from all users and plans.') }}" />
                     </h4>
                     <p class="text-2xl font-semibold">
-                        <span class="text-xl">{{ currency()->symbol }}</span>{{ number_format((float)cache()->get('total_sales', 0), 2) }}
+                        <span class="text-xl">{{ currency()->symbol }}</span>{{ cache()->get('total_sales') }}
                     </p>
                 </div>
                 <x-card
@@ -80,7 +80,7 @@
                 <div class="flex flex-col gap-3">
                     <span class="font-medium text-heading-foreground">{{ __('Referral Payouts') }}</span>
                     <h3 class="lqd-statistic-change m-0 flex items-center text-2xl sm:text-[30px]">
-                        <span class="text-xl">{{ $currencySymbol }}</span>{{ number_format((float)cache()->get('referral_payout', 0), 2) }}
+                        <span class="text-xl">{{ $currencySymbol }}</span>{{ cache()->get('referral_payout') }}
                     </h3>
                 </div>
             </x-card>
@@ -92,7 +92,7 @@
                     <span class="font-medium text-heading-foreground">{{ __('Total Spending') }}</span>
                     <h3 class="lqd-statistic-change m-0 flex items-center text-2xl sm:text-[30px]">
                         <span
-                            class="text-xl">{{ $currencySymbol }}</span>{{ number_format((float)setting('total_spend', 0), 1) }}
+                            class="text-xl">{{ $currencySymbol }}</span>{{ number_format(setting('total_spend', 0), 1) }}
                     </h3>
                 </div>
             </x-card>

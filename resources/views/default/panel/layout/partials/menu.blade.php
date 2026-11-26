@@ -20,21 +20,6 @@
         $type           = data_get($item, 'type');
         $parentKey      = data_get($item, 'parent_key');
 
-        // Suspended users: only Support + Settings in the left menu
-        if (!empty($isSuspendedTeamMember)) {
-            $allowedSuspendedMenuKeys = [
-                'support',
-                'ext_fashion_studio_user_settings',
-                'ext_fashion_studio_dropdown',
-            ];
-            if (! in_array($key, $allowedSuspendedMenuKeys, true) && $parentKey !== 'ext_fashion_studio_dropdown') {
-                continue;
-            }
-            if ($parentKey === 'ext_fashion_studio_dropdown' && $key !== 'ext_fashion_studio_user_settings') {
-                continue;
-            }
-        }
-
         // Skip early if plan doesn't allow it
         if (!\App\Helpers\Classes\PlanHelper::planMenuCheck($userPlan, $key)) {
             continue;
@@ -62,10 +47,6 @@
             @php
                 $fashionKey = data_get($fashionChild, 'key');
             @endphp
-            {{-- Suspended users: only Settings from Fashion Studio menu --}}
-            @if (!empty($isSuspendedTeamMember) && $fashionKey !== 'ext_fashion_studio_user_settings')
-                @continue
-            @endif
             @if (!data_get($fashionChild, 'is_active', false) || !data_get($fashionChild, 'show_condition', true))
                 @continue
             @endif
@@ -83,9 +64,6 @@
 
     {{-- Force top-level render for ext_fashion_studio_dropdown children --}}
     @if ($parentKey === 'ext_fashion_studio_dropdown')
-        @if (!empty($isSuspendedTeamMember) && $key !== 'ext_fashion_studio_user_settings')
-            @continue
-        @endif
         @includeIf('default.components.navbar.partials.types.' . $type)
     @elseif ($childrenCount)
         @includeIf('default.components.navbar.partials.types.item-dropdown')
@@ -94,7 +72,7 @@
     @endif
 
 	 {{-- Show Credits Below Support --}}
-    @if ($key === 'support' && auth()->check() && empty($isSuspendedTeamMember))
+    @if ($key === 'support' && auth()->check())
         @php
             $authUser = auth()->user();
             $userCredits = $authUser->total_credit ?? $authUser->total_credits ?? 0;

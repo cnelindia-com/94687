@@ -117,25 +117,25 @@
         <div class="content">
             <!-- Greeting -->
          <div class="greeting">
-    @if(empty($isSuperAdmin))
-        <h2>{{ $userName ?? '' }}</h2>
+    @if(!$isSuperAdmin)
+        <h2>{{ $userName }}</h2>
     @endif
 </div>
 
             <!-- Message Box -->
             <div class="message-box">
-                {!! nl2br(e($messageText ?? '')) !!}
+                {!! nl2br(e($messageText)) !!}
             </div>
 
           
 
             <!-- Ticket Info -->
             <div class="ticket-info">
-                <p><strong>Ticket ID:</strong> #{{ $ticketId ?? '' }}</p>
-             @if(!empty($isSuperAdmin))
-            <p><strong>Email Id: </strong>{{ $supportEmail ?? '' }} </p>
+                <p><strong>Ticket ID:</strong> #{{ $ticketId }}</p>
+             @if($isSuperAdmin)
+            <p><strong>Email Id: </strong>{{ $supportEmail }} </p>
             @else
-                <p><strong>Email Id: </strong>{{ $userEmail ?? '' }}</p>
+                <p><strong>Email Id: </strong>{{ $userEmail }}</p>
             @endif
 
                  

@@ -1,7 +1,5 @@
-<!-- Pritam -->
-<header class="lqd-header"> 
-     <div @class([
-        'lqd-header-container flex w-full gap-2 px-4 max-lg:w-full max-lg:max-w-none',
+<header class="lqd-header hidden relative flex h-[--header-height] ..." style="height:0 !important; margin:0 !important; padding:0 !important;">    <div @class([
+        'lqd-header-container flex w-full grow gap-2 px-4 max-lg:w-full max-lg:max-w-none',
         'container' => !$attributes->get('layout-wide'),
         'container-fluid' => $attributes->get('layout-wide'),
         Theme::getSetting('wideLayoutPaddingX', '') =>
@@ -89,43 +87,49 @@
                         </x-button>
                     @endif
                 </div> -->
-                
             @endif
 
             <div class="flex items-center gap-4 max-lg:gap-2">
-                
                 @includeIf('marketing-bot::header.inbox-notification')
 
                 @includeIf('chatbot-agent::header.inbox-notification')
 
                 @includeIf('social-media-agent::notifications.notifications-drawer')
 
-                {{-- Dark/light switch - MOVED TO TITLEBAR --}}
-                {{-- 
-                @if (Theme::getSetting('dashboard.supportedColorSchemes') === 'all')
+                {{-- Dark/light switch --}}
+                <!-- @if (Theme::getSetting('dashboard.supportedColorSchemes') === 'all')
                     <x-light-dark-switch />
-                @endif
-                --}}
+                @endif -->
 
                 @includeFirst(['focus-mode::ai-tools-button', 'components.includes.ai-tools-button', 'vendor.empty'])
 
-                {{-- Premium Membership Removed --}}
-                {{--
                 @if ($app_is_not_demo && Auth::user()->isAdmin() && !\App\Helpers\Classes\Helper::showIntercomForVipMembership())
-                    <x-modal class="max-lg:hidden" type="page">
-                        <x-slot:trigger custom>
-                            <x-button class="lqd-header-upgrade-btn flex items-center justify-center p-0 text-current">
-                                <x-tabler-bolt class="size-[22px]" stroke-width="1.5" />
+                    {{-- Upgrade button --}}
+                    <x-modal
+                        class="max-lg:hidden"
+                        type="page"
+                    >
+                        <x-slot:trigger
+                            custom
+                        >
+                            <x-button
+                                class="lqd-header-upgrade-btn flex items-center justify-center p-0 text-current"
+                                href="#"
+                                variant="link"
+                                title="{{ __('Premium Membership') }}"
+                                @click.prevent="toggleModal()"
+                            >
+                                <x-tabler-bolt
+                                    class="size-[22px]"
+                                    stroke-width="1.5"
+                                />
                             </x-button>
                         </x-slot:trigger>
-
                         <x-slot:modal>
                             @includeIf('premium-support.index')
                         </x-slot:modal>
                     </x-modal>
                 @endif
-                --}}
-            
 
                 @if (setting('notification_active', 0))
                     {{-- Notifications --}}
@@ -137,32 +141,9 @@
                     <x-language-dropdown />
                 @endif
 
-                {{-- User menu - MOVED TO TITLEBAR --}}
-                {{-- 
+                {{-- User menu --}}
                 <x-user-dropdown />
-                --}}
             </div>
         </div>
     </div>
 </header>
-
-<style>
-.header-actions-container .flex.items-center {
-    flex-wrap: wrap;
-}
-
-/* Ensure header container maintains proper alignment */
-.lqd-header-container {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    flex-wrap: nowrap !important;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-    .lqd-header-container {
-        flex-wrap: wrap !important;
-    }
-}
-</style>

@@ -99,7 +99,7 @@
         </div>
     </li> -->
     @if ($plan->is_team_plan)
-        <!-- <li class="mb-3 last:mb-0">
+        <li class="mb-3 last:mb-0">
             <span @class([
                 'inline-grid align-middle me-2',
                 'size-[22px] shrink-0 place-content-center rounded-xl bg-[#684AE2] bg-opacity-10 text-[#684AE2]' =>
@@ -111,7 +111,7 @@
                 {{ number_format($plan->plan_allow_seat) }}
             </strong>
             {{ __('Team allow seats') }}
-        </li> -->
+        </li>
     @endif
     @if ($plan->trial_days > 0)
         <li class="mb-3 flex items-center last:mb-0">

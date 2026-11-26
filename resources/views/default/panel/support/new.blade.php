@@ -14,8 +14,7 @@
         <form
             class="mx-auto flex w-full flex-wrap justify-between gap-y-5 lg:w-5/12"
             id="support_form"
-            method="POST"
-            action="{{ url('/dashboard/support/new-support-request/send') }}"
+            onsubmit="return sendSupportForm();"
             enctype="multipart/form-data"
         >
             @csrf
@@ -31,7 +30,7 @@
                 @foreach ($categories as $category)
                     <option
                         value="{{ $category }}"
-                        @selected(old('category', $categories[0]) === $category)
+                        @selected($loop->first)
                     >
                         {{ __($category) }}
                     </option>
@@ -49,7 +48,7 @@
                 @foreach ($priorities as $priority)
                     <option
                         value="{{ $priority }}"
-                        @selected(old('priority', $priorities[0]) === $priority)
+                        @selected($loop->first)
                     >
                         {{ __($priority) }}
                     </option>
@@ -64,7 +63,6 @@
                 required
                 size="lg"
                 label="{{ __('Subject') }}"
-                value="{{ old('subject') }}"
             />
 
             <x-forms.input
@@ -77,7 +75,7 @@
                 required
                 size="lg"
                 label="{{ __('Message') }}"
-            >{{ old('message') }}</x-forms.input>
+            />
 
             <div class="w-full">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -119,6 +117,7 @@
 @endsection
 
 @push('script')
+    <script src="{{ custom_theme_url('/assets/js/panel/support.js') }}?v=2"></script>
     <script>
         function showFileName(input) {
             if (input.files && input.files[0]) {
@@ -127,13 +126,5 @@
                 document.getElementById('file_name').textContent = '';
             }
         }
-
-        document.getElementById('support_form')?.addEventListener('submit', function () {
-            const button = document.getElementById('support_button');
-            if (button) {
-                button.disabled = true;
-                button.classList.add('opacity-70', 'pointer-events-none');
-            }
-        });
     </script>
 @endpush

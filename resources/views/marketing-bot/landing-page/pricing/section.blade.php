@@ -70,7 +70,7 @@
                 @if ($plansPrepaid->count() > 0)
                     @include('landing-page.pricing.item-trigger', [
                         'target' => '#pricing-prepaid',
-                        'label' => __('Credits Pack'),
+                        'label' => __('Pre-Paid'),
                         'currency' => $currency,
                     ])
                 @endif
